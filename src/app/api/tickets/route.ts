@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getZAI } from '@/lib/zai'
+import { chat } from '@/lib/ai-service'
 
 // Helper to get current user from session
 async function getCurrentUser(req: NextRequest) {
@@ -21,39 +21,29 @@ async function getCurrentUser(req: NextRequest) {
 
 // Generate AI response for ticket
 async function generateAIResponse(ticketTitle: string, ticketMessage: string, category: string): Promise<string> {
-  try {
-    const zai = await getZAI()
+  const systemPrompt = `أنت مساعد دعم فني لموقع "مساعد دراسة تونسي" - منصة تعليمية للطلاب التونسيين.
 
-    const systemPrompt = `أنت مساعد دعم فني لموقع "مساعد دراسة تونسي" - منصة تعليمية للطلاب التونسيين.
-    
-    قواعد الرد:
-    1. كن ودوداً ومحترفاً
-    2. أجب بالعربية الفصحى
-    3. إذا كان السؤال تقني، قدم حلولاً خطوة بخطوة
-    4. إذا كان عن الاشتراكات، اشرح خطط الأسعار
-    5. إذا لم تتمكن من حل المشكلة، اقترح طلب تدخل يدوي
-    
-    خطط الأسعار:
-    - مجاني: 10 محادثات، 3 OCR يومياً
-    - أساسي (9.99 DT/شهر): 50 محادثة، 20 OCR، وضع المعلم
-    - متقدم (19.99 DT/شهر): غير محدود + ميزات متقدمة
-    - باك برو (29.99 DT/شهر لـ 4 أشهر): للمتقدمين للباكالوريا
-    
-    للتواصل: +216 24 239 724 (واتساب)`
+قواعد الرد:
+1. كن ودوداً ومحترفاً
+2. أجب بالعربية الفصحى
+3. إذا كان السؤال تقني، قدم حلولاً خطوة بخطوة
+4. إذا كان عن الاشتراكات، اشرح خطط الأسعار
+5. إذا لم تتمكن من حل المشكلة، اقترح طلب تدخل يدوي
 
-    const completion = await zai.chat.completions.create({
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: `عنوان التذكرة: ${ticketTitle}\nالتصنيف: ${category}\n\nرسالة المستخدم: ${ticketMessage}` }
-      ],
-      temperature: 0.7,
-      max_tokens: 500
-    })
+خطط الأسعار:
+- مجاني: 10 محادثات، 3 OCR يومياً
+- أساسي (9.99 DT/شهر): 50 محادثة، 20 OCR، وضع المعلم
+- متقدم (19.99 DT/شهر): غير محدود + ميزات متقدمة
+- باك برو (29.99 DT/شهر لـ 4 أشهر): للمتقدمين للباكالوريا
 
-    return completion.choices[0]?.message?.content || 'شكراً لتواصلك معنا. سيتم الرد عليك قريباً.'
-  } catch {
-    return 'شكراً لتواصلك معنا. تم استلام رسالتك وسيتم الرد عليك في أقرب وقت ممكن.'
-  }
+للتواصل: +216 24 239 724 (واتساب)`
+
+  const result = await chat(
+    `${systemPrompt}\n\nعنوان التذكرة: ${ticketTitle}\nالتصنيف: ${category}\n\nرسالة المستخدم: ${ticketMessage}`,
+    {}
+  )
+
+  return result.content || 'شكراً لتواصلك معنا. سيتم الرد عليك قريباً.'
 }
 
 // GET - Fetch user's tickets
@@ -209,7 +199,7 @@ export async function PUT(req: NextRequest) {
     // Update ticket status
     await db.supportTicket.update({
       where: { id: ticketId },
-      data: { 
+      data: {
         status: 'WAITING_USER',
         updatedAt: new Date()
       }
@@ -222,7 +212,7 @@ export async function PUT(req: NextRequest) {
       take: 3
     })
 
-    const context = lastMessages.reverse().map(m => 
+    const context = lastMessages.reverse().map(m =>
       `${m.isFromAI ? 'المساعد' : 'المستخدم'}: ${m.content}`
     ).join('\n')
 

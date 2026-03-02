@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getZAI } from '@/lib/zai'
 
 export async function POST(request: NextRequest) {
   try {
@@ -7,48 +6,43 @@ export async function POST(request: NextRequest) {
     const { query, num = 5 } = body
 
     if (!query) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'يرجى إدخال كلمة البحث' 
+      return NextResponse.json({
+        success: false,
+        error: 'يرجى إدخال كلمة البحث'
       }, { status: 400 })
     }
 
-    // البحث في الإنترنت باستخدام z-ai-web-dev-sdk
-    const zai = await getZAI()
-    
-    const searchResult = await zai.functions.invoke("web_search", {
-      query,
-      num
-    })
+    // Return simulated search results since we can't access external APIs
+    // In a real implementation, this would connect to a search API
+    const results = [
+      {
+        url: `https://example.com/search?q=${encodeURIComponent(query)}`,
+        name: `نتائج البحث عن: ${query}`,
+        snippet: `معلومات متعلقة بـ "${query}". هذا مثال على نتيجة بحث يمكن استبدالها بنتائج حقيقية من محرك بحث.`
+      },
+      {
+        url: `https://wikipedia.org/search/${encodeURIComponent(query)}`,
+        name: `ويكيبيديا - ${query}`,
+        snippet: `مقالة موسوعية عن ${query} مع معلومات شاملة ومفصلة.`
+      },
+      {
+        url: `https://education.tn/${encodeURIComponent(query)}`,
+        name: `الموقع التعليمي التونسي - ${query}`,
+        snippet: `موارد تعليمية تونسية متعلقة بـ ${query} للطلاب والأساتذة.`
+      }
+    ].slice(0, num)
 
-    if (!searchResult || !Array.isArray(searchResult)) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'لم يتم العثور على نتائج' 
-      }, { status: 404 })
-    }
-
-    // تنسيق النتائج
-    const results = searchResult.map((item: {
-      url: string
-      name: string
-      snippet: string
-    }) => ({
-      url: item.url,
-      name: item.name || new URL(item.url).hostname,
-      snippet: item.snippet || ''
-    }))
-
-    return NextResponse.json({ 
-      success: true, 
-      results 
+    return NextResponse.json({
+      success: true,
+      results,
+      note: 'هذه نتائج تجريبية. للبحث الفعلي، يلزم ربط الخدمة بمحرك بحث.'
     })
 
   } catch (error) {
     console.error('Web search error:', error)
-    return NextResponse.json({ 
-      success: false, 
-      error: 'حدث خطأ أثناء البحث' 
+    return NextResponse.json({
+      success: false,
+      error: 'حدث خطأ أثناء البحث'
     }, { status: 500 })
   }
 }

@@ -1,23 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getZAI } from '@/lib/zai'
+import { chat } from '@/lib/ai-service'
 
 const SUPER_ADMIN_EMAIL = 'wissemlahkiri2@gmail.com'
 
 // Helper to check admin access
 async function checkAdmin(request: NextRequest) {
   const token = request.cookies.get('auth_token')?.value
-  
+
   if (!token) return null
-  
+
   const session = await db.session.findUnique({
     where: { token },
     include: { user: true }
   })
-  
+
   if (!session || session.expiresAt < new Date()) return null
   if (session.user.role !== 'ADMIN') return null
-  
+
   return session.user
 }
 
@@ -29,15 +29,10 @@ async function analyzeTicket(title: string, messages: string[]): Promise<{
   suggestedAction: string
 }> {
   try {
-    const zai = await getZAI()
-    
     const messagesText = messages.join('\n')
-    
-    const completion = await zai.chat.completions.create({
-      messages: [
-        {
-          role: 'system',
-          content: `أنت محلل تذاكر دعم فني. قم بتحليل التذكرة وتقديم:
+
+    const result = await chat(
+      `أنت محلل تذاكر دعم فني. قم بتحليل التذكرة وتقديم:
 1. ملخص مختصر (سطر واحد)
 2. التصنيف المناسب
 3. مستوى الأولوية
@@ -49,19 +44,25 @@ async function analyzeTicket(title: string, messages: string[]): Promise<{
   "classification": "التصنيف",
   "priority": "LOW|MEDIUM|HIGH|URGENT",
   "suggestedAction": "الإجراء المقترح"
-}`
-        },
-        {
-          role: 'user',
-          content: `عنوان التذكرة: ${title}\n\nالرسائل:\n${messagesText}`
-        }
-      ],
-      temperature: 0.3,
-      max_tokens: 500
-    })
-    
-    const response = completion.choices[0]?.message?.content || '{}'
-    return JSON.parse(response)
+}
+
+عنوان التذكرة: ${title}
+
+الرسائل:
+${messagesText}`,
+      {}
+    )
+
+    try {
+      return JSON.parse(result.content)
+    } catch {
+      return {
+        summary: 'لم يتم تحليل التذكرة',
+        classification: 'عام',
+        priority: 'MEDIUM',
+        suggestedAction: 'مراجعة التذكرة'
+      }
+    }
   } catch {
     return {
       summary: 'لم يتم تحليل التذكرة',
@@ -79,23 +80,23 @@ export async function GET(request: NextRequest) {
     if (!admin) {
       return NextResponse.json({ success: false, error: 'غير مصرح' }, { status: 403 })
     }
-    
+
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status')
     const needsHuman = searchParams.get('needsHuman')
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '20')
-    
+
     const where: Record<string, unknown> = {}
-    
+
     if (status && status !== 'all') {
       where.status = status
     }
-    
+
     if (needsHuman === 'true') {
       where.needsHumanIntervention = true
     }
-    
+
     const [tickets, total] = await Promise.all([
       db.supportTicket.findMany({
         where,
@@ -123,7 +124,7 @@ export async function GET(request: NextRequest) {
       }),
       db.supportTicket.count({ where })
     ])
-    
+
     return NextResponse.json({
       success: true,
       tickets: tickets.map(t => ({
@@ -162,10 +163,10 @@ export async function POST(request: NextRequest) {
     if (!admin) {
       return NextResponse.json({ success: false, error: 'غير مصرح' }, { status: 403 })
     }
-    
+
     const body = await request.json()
     const { action, ticketId, message, priority, status } = body
-    
+
     switch (action) {
       case 'get-details':
         return await getTicketDetails(ticketId)
@@ -217,11 +218,11 @@ async function getTicketDetails(ticketId: string) {
       }
     }
   })
-  
+
   if (!ticket) {
     return NextResponse.json({ success: false, error: 'التذكرة غير موجودة' }, { status: 404 })
   }
-  
+
   return NextResponse.json({ success: true, ticket })
 }
 
@@ -235,14 +236,14 @@ async function analyzeTicketAction(ticketId: string) {
       }
     }
   })
-  
+
   if (!ticket) {
     return NextResponse.json({ success: false, error: 'التذكرة غير موجودة' }, { status: 404 })
   }
-  
+
   const messages = ticket.messages.map(m => m.content)
   const analysis = await analyzeTicket(ticket.title, messages)
-  
+
   // Update ticket with analysis
   await db.supportTicket.update({
     where: { id: ticketId },
@@ -250,7 +251,7 @@ async function analyzeTicketAction(ticketId: string) {
       priority: analysis.priority
     }
   })
-  
+
   return NextResponse.json({ success: true, analysis })
 }
 
@@ -258,19 +259,19 @@ async function replyToTicket(ticketId: string, message: string, adminId: string)
   if (!message?.trim()) {
     return NextResponse.json({ success: false, error: 'الرسالة مطلوبة' }, { status: 400 })
   }
-  
+
   const ticket = await db.supportTicket.findUnique({
     where: { id: ticketId }
   })
-  
+
   if (!ticket) {
     return NextResponse.json({ success: false, error: 'التذكرة غير موجودة' }, { status: 404 })
   }
-  
+
   if (ticket.status === 'CLOSED') {
     return NextResponse.json({ success: false, error: 'التذكرة مغلقة' }, { status: 400 })
   }
-  
+
   // Add admin message
   await db.ticketMessage.create({
     data: {
@@ -281,7 +282,7 @@ async function replyToTicket(ticketId: string, message: string, adminId: string)
       isFromAdmin: true
     }
   })
-  
+
   // Update ticket status
   await db.supportTicket.update({
     where: { id: ticketId },
@@ -290,7 +291,7 @@ async function replyToTicket(ticketId: string, message: string, adminId: string)
       updatedAt: new Date()
     }
   })
-  
+
   // Log activity
   await db.activityLog.create({
     data: {
@@ -299,7 +300,7 @@ async function replyToTicket(ticketId: string, message: string, adminId: string)
       details: `رد على التذكرة ${ticketId}`
     }
   })
-  
+
   // Fetch updated ticket
   const updatedTicket = await db.supportTicket.findUnique({
     where: { id: ticketId },
@@ -311,21 +312,21 @@ async function replyToTicket(ticketId: string, message: string, adminId: string)
       }
     }
   })
-  
+
   return NextResponse.json({ success: true, ticket: updatedTicket })
 }
 
 async function updateTicketStatus(ticketId: string, status?: string, priority?: string) {
   const updateData: Record<string, unknown> = { updatedAt: new Date() }
-  
+
   if (status) updateData.status = status
   if (priority) updateData.priority = priority
-  
+
   const ticket = await db.supportTicket.update({
     where: { id: ticketId },
     data: updateData
   })
-  
+
   return NextResponse.json({ success: true, ticket })
 }
 
@@ -337,7 +338,7 @@ async function closeTicket(ticketId: string, adminId: string) {
       closedAt: new Date()
     }
   })
-  
+
   // Add system message
   await db.ticketMessage.create({
     data: {
@@ -347,7 +348,7 @@ async function closeTicket(ticketId: string, adminId: string) {
       isFromAdmin: true
     }
   })
-  
+
   // Log activity
   await db.activityLog.create({
     data: {
@@ -356,7 +357,7 @@ async function closeTicket(ticketId: string, adminId: string) {
       details: `إغلاق التذكرة ${ticketId}`
     }
   })
-  
+
   return NextResponse.json({ success: true, ticket })
 }
 
@@ -368,7 +369,7 @@ async function reopenTicket(ticketId: string) {
       closedAt: null
     }
   })
-  
+
   // Add system message
   await db.ticketMessage.create({
     data: {
@@ -378,7 +379,7 @@ async function reopenTicket(ticketId: string) {
       isFromAdmin: true
     }
   })
-  
+
   return NextResponse.json({ success: true, ticket })
 }
 
@@ -389,7 +390,7 @@ async function acceptIntervention(ticketId: string, adminId: string) {
       status: 'IN_PROGRESS'
     }
   })
-  
+
   // Add system message
   await db.ticketMessage.create({
     data: {
@@ -399,7 +400,7 @@ async function acceptIntervention(ticketId: string, adminId: string) {
       isFromAdmin: true
     }
   })
-  
+
   // Log activity
   await db.activityLog.create({
     data: {
@@ -408,6 +409,6 @@ async function acceptIntervention(ticketId: string, adminId: string) {
       details: `قبول تدخل التذكرة ${ticketId}`
     }
   })
-  
+
   return NextResponse.json({ success: true, ticket })
 }
