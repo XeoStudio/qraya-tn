@@ -90,7 +90,8 @@ ${userInfo.length > 0 ? '- ' + userInfo.join(' | ') : ''}
     const zai = await ZAI.create()
     const completion = await zai.chat.completions.create({
       messages: [
-        { role: 'system', content: systemPrompt }
+        { role: 'system', content: 'أنت مستشار تعليمي تونسي خبير في تخطيط الدراسة للطلاب التونسيين.' },
+        { role: 'user', content: systemPrompt }
       ],
       temperature: 0.7,
       max_tokens: 3000

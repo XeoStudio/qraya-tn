@@ -66,7 +66,8 @@ export async function POST(request: NextRequest) {
     const zai = await ZAI.create()
     const completion = await zai.chat.completions.create({
       messages: [
-        { role: 'system', content: systemPrompt }
+        { role: 'system', content: 'أنت معلم تونسي خبير في إنشاء بطاقات المراجعة. ترد بتنسيق JSON فقط.' },
+        { role: 'user', content: systemPrompt }
       ],
       temperature: 0.6,
       max_tokens: 2000
