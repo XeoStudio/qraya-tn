@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { chat } from '@/lib/ai-service'
+import { chat, type ChatMessage } from '@/lib/ai-service'
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,7 +12,11 @@ export async function POST(request: NextRequest) {
 
     const session = await db.session.findUnique({
       where: { token },
-      include: { user: true }
+      include: {
+        user: {
+          include: { subscription: true }
+        }
+      }
     })
 
     if (!session || session.expiresAt < new Date()) {
@@ -20,34 +24,55 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { message, history = [] } = body as {
+    const {
+      message,
+      history = [],
+      enableWebSearch = false
+    } = body as {
       message: string
-      history?: Array<{ role: string; content: string }>
+      history?: ChatMessage[]
+      enableWebSearch?: boolean
     }
 
-    if (!message) {
+    if (!message || message.trim().length === 0) {
       return NextResponse.json({ success: false, error: 'الرسالة مطلوبة' }, { status: 400 })
     }
 
     const user = session.user
 
-    // Get AI response
-    const response = await chat(
-      message,
-      {
-        userName: user.name,
-        level: user.level,
-        levelName: user.levelName,
-        year: user.year,
-        section: user.section
-      },
-      history.map(h => ({ role: h.role as 'system' | 'user' | 'assistant', content: h.content }))
-    )
+    // Build user profile for AI
+    const userProfile = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      level: user.level,
+      levelName: user.levelName,
+      year: user.year,
+      section: user.section,
+      governorate: user.governorate,
+      subjects: user.subjects,
+      points: user.points,
+      streak: user.streak,
+      role: user.role,
+      subscription: user.subscription ? {
+        plan: user.subscription.plan,
+        status: user.subscription.status,
+        agentMode: user.subscription.agentMode,
+        advancedAI: user.subscription.advancedAI
+      } : null
+    }
+
+    // Get AI response with user context
+    const response = await chat(message.trim(), userProfile, {
+      history,
+      enableWebSearch: enableWebSearch || user.subscription?.advancedAI || false,
+      thinking: user.subscription?.advancedAI || false
+    })
 
     if (!response.success) {
       return NextResponse.json({
         success: false,
-        error: response.error || 'حدث خطأ في معالجة الرسالة'
+        error: response.error || 'حدث خطأ في الاتصال بالذكاء الاصطناعي'
       }, { status: 500 })
     }
 
@@ -66,7 +91,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      response: response.content
+      response: response.content,
+      sources: response.sources
     })
   } catch (error) {
     console.error('Chat error:', error)

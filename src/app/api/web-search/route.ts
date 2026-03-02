@@ -1,7 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { db } from '@/lib/db'
+import { webSearch } from '@/lib/ai-service'
 
 export async function POST(request: NextRequest) {
   try {
+    const token = request.cookies.get('auth_token')?.value
+
+    if (!token) {
+      return NextResponse.json({
+        success: false,
+        error: 'يرجى تسجيل الدخول أولاً'
+      }, { status: 401 })
+    }
+
+    const session = await db.session.findUnique({
+      where: { token },
+      include: { user: true }
+    })
+
+    if (!session || session.expiresAt < new Date()) {
+      return NextResponse.json({
+        success: false,
+        error: 'الجلسة منتهية'
+      }, { status: 401 })
+    }
+
     const body = await request.json()
     const { query, num = 5 } = body
 
@@ -12,30 +35,38 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // Return simulated search results since we can't access external APIs
-    // In a real implementation, this would connect to a search API
-    const results = [
-      {
-        url: `https://example.com/search?q=${encodeURIComponent(query)}`,
-        name: `نتائج البحث عن: ${query}`,
-        snippet: `معلومات متعلقة بـ "${query}". هذا مثال على نتيجة بحث يمكن استبدالها بنتائج حقيقية من محرك بحث.`
-      },
-      {
-        url: `https://wikipedia.org/search/${encodeURIComponent(query)}`,
-        name: `ويكيبيديا - ${query}`,
-        snippet: `مقالة موسوعية عن ${query} مع معلومات شاملة ومفصلة.`
-      },
-      {
-        url: `https://education.tn/${encodeURIComponent(query)}`,
-        name: `الموقع التعليمي التونسي - ${query}`,
-        snippet: `موارد تعليمية تونسية متعلقة بـ ${query} للطلاب والأساتذة.`
-      }
-    ].slice(0, num)
+    const user = session.user
+
+    // Build user profile for contextual search
+    const userProfile = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      level: user.level,
+      levelName: user.levelName,
+      year: user.year,
+      section: user.section,
+      governorate: user.governorate,
+      subjects: user.subjects,
+      points: user.points,
+      streak: user.streak,
+      role: user.role,
+      subscription: null
+    }
+
+    // Execute web search with Tunisian context
+    const result = await webSearch(query, userProfile, num)
+
+    if (!result.success || !result.results) {
+      return NextResponse.json({
+        success: false,
+        error: result.error || 'لم يتم العثور على نتائج'
+      })
+    }
 
     return NextResponse.json({
       success: true,
-      results,
-      note: 'هذه نتائج تجريبية. للبحث الفعلي، يلزم ربط الخدمة بمحرك بحث.'
+      results: result.results
     })
 
   } catch (error) {

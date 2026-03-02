@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { generateQuizQuestions } from '@/lib/ai-service'
+import { generateQuiz } from '@/lib/ai-service'
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,7 +12,11 @@ export async function POST(request: NextRequest) {
 
     const session = await db.session.findUnique({
       where: { token },
-      include: { user: true }
+      include: {
+        user: {
+          include: { subscription: true }
+        }
+      }
     })
 
     if (!session || session.expiresAt < new Date()) {
@@ -20,11 +24,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { topic, count = 5, difficulty = 'medium', level } = body as {
+    const { topic, count = 5, difficulty = 'medium' } = body as {
       topic: string
       count?: number
       difficulty?: 'easy' | 'medium' | 'hard'
-      level?: string
     }
 
     if (!topic || topic.trim().length < 3) {
@@ -34,26 +37,53 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // Generate quiz questions
-    const questions = generateQuizQuestions(topic, Math.min(count, 10), difficulty)
+    const user = session.user
 
-    if (questions.length === 0) {
+    // Build user profile
+    const userProfile = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      level: user.level,
+      levelName: user.levelName,
+      year: user.year,
+      section: user.section,
+      governorate: user.governorate,
+      subjects: user.subjects,
+      points: user.points,
+      streak: user.streak,
+      role: user.role,
+      subscription: user.subscription ? {
+        plan: user.subscription.plan,
+        status: user.subscription.status,
+        agentMode: user.subscription.agentMode,
+        advancedAI: user.subscription.advancedAI
+      } : null
+    }
+
+    // Generate quiz with AI
+    const result = await generateQuiz(topic.trim(), userProfile, {
+      count: Math.min(count, 15),
+      difficulty
+    })
+
+    if (!result.success || !result.questions) {
       return NextResponse.json({
         success: false,
-        error: 'لم أتمكن من إنشاء أسئلة. حاول بموضوع مختلف.'
+        error: result.error || 'لم أتمكن من إنشاء الأسئلة'
       })
     }
 
     // Update points
     await db.user.update({
-      where: { id: session.user.id },
+      where: { id: user.id },
       data: { points: { increment: 3 } }
     })
 
     // Log activity
     await db.activityLog.create({
       data: {
-        userId: session.user.id,
+        userId: user.id,
         action: 'quiz',
         details: `إنشاء ${count} أسئلة في ${topic}`
       }
@@ -61,7 +91,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      questions,
+      questions: result.questions,
       topic,
       difficulty
     })

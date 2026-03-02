@@ -12,7 +12,11 @@ export async function POST(request: NextRequest) {
 
     const session = await db.session.findUnique({
       where: { token },
-      include: { user: { include: { subscription: true } } }
+      include: {
+        user: {
+          include: { subscription: true }
+        }
+      }
     })
 
     if (!session || session.expiresAt < new Date()) {
@@ -20,11 +24,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { subjects, days, hoursPerDay, level, goal } = body as {
+    const { subjects, days, hoursPerDay, goal } = body as {
       subjects: string[]
       days: number
       hoursPerDay: number
-      level?: string
       goal?: string
     }
 
@@ -42,29 +45,50 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // Generate study plan
-    const studyPlanContent = generateStudyPlan(subjects, days, hoursPerDay)
+    const user = session.user
 
-    let studyPlan = `## 📚 خطة الدراسة المخصصة\n\n`
-    studyPlan += `### معلومات الطالب:\n`
-    studyPlan += `- **المواد:** ${subjects.join('، ')}\n`
-    studyPlan += `- **المدة:** ${days} يوم\n`
-    studyPlan += `- **ساعات الدراسة:** ${hoursPerDay} ساعة يومياً\n`
-    if (level) studyPlan += `- **المستوى:** ${level}\n`
-    if (goal) studyPlan += `- **الهدف:** ${goal}\n`
-    studyPlan += `\n---\n\n`
-    studyPlan += studyPlanContent
+    // Build user profile
+    const userProfile = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      level: user.level,
+      levelName: user.levelName,
+      year: user.year,
+      section: user.section,
+      governorate: user.governorate,
+      subjects: user.subjects,
+      points: user.points,
+      streak: user.streak,
+      role: user.role,
+      subscription: user.subscription ? {
+        plan: user.subscription.plan,
+        status: user.subscription.status,
+        agentMode: user.subscription.agentMode,
+        advancedAI: user.subscription.advancedAI
+      } : null
+    }
+
+    // Generate study plan with AI
+    const result = await generateStudyPlan(subjects, days, hoursPerDay, userProfile, goal)
+
+    if (!result.success || !result.plan) {
+      return NextResponse.json({
+        success: false,
+        error: result.error || 'لم أتمكن من إنشاء الخطة'
+      })
+    }
 
     // Update points
     await db.user.update({
-      where: { id: session.user.id },
+      where: { id: user.id },
       data: { points: { increment: 5 } }
     })
 
     // Log activity
     await db.activityLog.create({
       data: {
-        userId: session.user.id,
+        userId: user.id,
         action: 'study-plan',
         details: `إنشاء خطة ${days} يوم - ${subjects.length} مواد`
       }
@@ -72,7 +96,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      studyPlan,
+      studyPlan: result.plan,
       subjects,
       days,
       hoursPerDay

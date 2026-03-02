@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { chat } from '@/lib/ai-service'
+import { generateSupportResponse } from '@/lib/ai-service'
 
 // Helper to get current user from session
 async function getCurrentUser(req: NextRequest) {
@@ -9,7 +9,7 @@ async function getCurrentUser(req: NextRequest) {
 
   const session = await db.session.findUnique({
     where: { token },
-    include: { user: true }
+    include: { user: { include: { subscription: true } } }
   })
 
   if (!session || session.expiresAt < new Date()) {
@@ -17,33 +17,6 @@ async function getCurrentUser(req: NextRequest) {
   }
 
   return session.user
-}
-
-// Generate AI response for ticket
-async function generateAIResponse(ticketTitle: string, ticketMessage: string, category: string): Promise<string> {
-  const systemPrompt = `أنت مساعد دعم فني لموقع "مساعد دراسة تونسي" - منصة تعليمية للطلاب التونسيين.
-
-قواعد الرد:
-1. كن ودوداً ومحترفاً
-2. أجب بالعربية الفصحى
-3. إذا كان السؤال تقني، قدم حلولاً خطوة بخطوة
-4. إذا كان عن الاشتراكات، اشرح خطط الأسعار
-5. إذا لم تتمكن من حل المشكلة، اقترح طلب تدخل يدوي
-
-خطط الأسعار:
-- مجاني: 10 محادثات، 3 OCR يومياً
-- أساسي (9.99 DT/شهر): 50 محادثة، 20 OCR، وضع المعلم
-- متقدم (19.99 DT/شهر): غير محدود + ميزات متقدمة
-- باك برو (29.99 DT/شهر لـ 4 أشهر): للمتقدمين للباكالوريا
-
-للتواصل: +216 24 239 724 (واتساب)`
-
-  const result = await chat(
-    `${systemPrompt}\n\nعنوان التذكرة: ${ticketTitle}\nالتصنيف: ${category}\n\nرسالة المستخدم: ${ticketMessage}`,
-    {}
-  )
-
-  return result.content || 'شكراً لتواصلك معنا. سيتم الرد عليك قريباً.'
 }
 
 // GET - Fetch user's tickets
@@ -118,8 +91,30 @@ export async function POST(req: NextRequest) {
       }
     })
 
+    // Build user profile for AI
+    const userProfile = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      level: user.level,
+      levelName: user.levelName,
+      year: user.year,
+      section: user.section,
+      governorate: user.governorate,
+      subjects: user.subjects,
+      points: user.points,
+      streak: user.streak,
+      role: user.role,
+      subscription: user.subscription ? {
+        plan: user.subscription.plan,
+        status: user.subscription.status,
+        agentMode: user.subscription.agentMode,
+        advancedAI: user.subscription.advancedAI
+      } : null
+    }
+
     // Generate AI response
-    const aiResponse = await generateAIResponse(title, message, category || 'GENERAL')
+    const aiResponse = await generateSupportResponse(title, message, category || 'GENERAL', userProfile)
 
     // Add AI response
     await db.ticketMessage.create({
@@ -205,18 +200,30 @@ export async function PUT(req: NextRequest) {
       }
     })
 
+    // Build user profile for AI
+    const userProfile = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      level: user.level,
+      levelName: user.levelName,
+      year: user.year,
+      section: user.section,
+      governorate: user.governorate,
+      subjects: user.subjects,
+      points: user.points,
+      streak: user.streak,
+      role: user.role,
+      subscription: user.subscription ? {
+        plan: user.subscription.plan,
+        status: user.subscription.status,
+        agentMode: user.subscription.agentMode,
+        advancedAI: user.subscription.advancedAI
+      } : null
+    }
+
     // Generate AI response
-    const lastMessages = await db.ticketMessage.findMany({
-      where: { ticketId },
-      orderBy: { createdAt: 'desc' },
-      take: 3
-    })
-
-    const context = lastMessages.reverse().map(m =>
-      `${m.isFromAI ? 'المساعد' : 'المستخدم'}: ${m.content}`
-    ).join('\n')
-
-    const aiResponse = await generateAIResponse(ticket.title, context, ticket.category)
+    const aiResponse = await generateSupportResponse(ticket.title, message, ticket.category, userProfile)
 
     // Add AI response
     await db.ticketMessage.create({
@@ -280,7 +287,6 @@ export async function PATCH(req: NextRequest) {
           needsHumanIntervention: true,
           status: 'IN_PROGRESS'
         }
-        // Add system message
         await db.ticketMessage.create({
           data: {
             ticketId,
@@ -318,7 +324,6 @@ export async function PATCH(req: NextRequest) {
       data: updateData
     })
 
-    // Fetch updated ticket
     const updatedTicket = await db.supportTicket.findUnique({
       where: { id: ticketId },
       include: {

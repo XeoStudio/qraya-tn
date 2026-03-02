@@ -12,7 +12,7 @@ async function checkAdmin(request: NextRequest) {
 
   const session = await db.session.findUnique({
     where: { token },
-    include: { user: true }
+    include: { user: { include: { subscription: true } } }
   })
 
   if (!session || session.expiresAt < new Date()) return null
@@ -22,7 +22,7 @@ async function checkAdmin(request: NextRequest) {
 }
 
 // AI function to summarize and classify ticket
-async function analyzeTicket(title: string, messages: string[]): Promise<{
+async function analyzeTicket(title: string, messages: string[], adminUser: { id: string; name: string | null; email: string; role: string }): Promise<{
   summary: string
   classification: string
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
@@ -32,11 +32,16 @@ async function analyzeTicket(title: string, messages: string[]): Promise<{
     const messagesText = messages.join('\n')
 
     const result = await chat(
-      `أنت محلل تذاكر دعم فني. قم بتحليل التذكرة وتقديم:
+      `حلل التذكرة التالية وقدم:
 1. ملخص مختصر (سطر واحد)
 2. التصنيف المناسب
 3. مستوى الأولوية
 4. الإجراء المقترح
+
+عنوان التذكرة: ${title}
+
+الرسائل:
+${messagesText}
 
 أعد الرد بتنسيق JSON فقط:
 {
@@ -44,24 +49,38 @@ async function analyzeTicket(title: string, messages: string[]): Promise<{
   "classification": "التصنيف",
   "priority": "LOW|MEDIUM|HIGH|URGENT",
   "suggestedAction": "الإجراء المقترح"
-}
-
-عنوان التذكرة: ${title}
-
-الرسائل:
-${messagesText}`,
-      {}
+}`,
+      {
+        id: adminUser.id,
+        name: adminUser.name,
+        email: adminUser.email,
+        level: null,
+        levelName: null,
+        year: null,
+        section: null,
+        governorate: null,
+        subjects: null,
+        points: 0,
+        streak: 0,
+        role: adminUser.role,
+        subscription: null
+      }
     )
 
-    try {
-      return JSON.parse(result.content)
-    } catch {
-      return {
-        summary: 'لم يتم تحليل التذكرة',
-        classification: 'عام',
-        priority: 'MEDIUM',
-        suggestedAction: 'مراجعة التذكرة'
-      }
+    if (result.success) {
+      try {
+        const jsonMatch = result.content.match(/\{[\s\S]*\}/)
+        if (jsonMatch) {
+          return JSON.parse(jsonMatch[0])
+        }
+      } catch {}
+    }
+
+    return {
+      summary: 'لم يتم تحليل التذكرة',
+      classification: 'عام',
+      priority: 'MEDIUM',
+      suggestedAction: 'مراجعة التذكرة'
     }
   } catch {
     return {
@@ -171,7 +190,7 @@ export async function POST(request: NextRequest) {
       case 'get-details':
         return await getTicketDetails(ticketId)
       case 'analyze':
-        return await analyzeTicketAction(ticketId)
+        return await analyzeTicketAction(ticketId, admin)
       case 'reply':
         return await replyToTicket(ticketId, message, admin.id)
       case 'update-status':
@@ -226,7 +245,7 @@ async function getTicketDetails(ticketId: string) {
   return NextResponse.json({ success: true, ticket })
 }
 
-async function analyzeTicketAction(ticketId: string) {
+async function analyzeTicketAction(ticketId: string, admin: { id: string; name: string | null; email: string; role: string }) {
   const ticket = await db.supportTicket.findUnique({
     where: { id: ticketId },
     include: {
@@ -242,7 +261,7 @@ async function analyzeTicketAction(ticketId: string) {
   }
 
   const messages = ticket.messages.map(m => m.content)
-  const analysis = await analyzeTicket(ticket.title, messages)
+  const analysis = await analyzeTicket(ticket.title, messages, admin)
 
   // Update ticket with analysis
   await db.supportTicket.update({
