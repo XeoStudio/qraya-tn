@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import ZAI from 'z-ai-web-dev-sdk'
+import { getZAI } from '@/lib/zai'
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     }
 
     // البحث في الإنترنت باستخدام z-ai-web-dev-sdk
-    const zai = await ZAI.create()
+    const zai = await getZAI()
     
     const searchResult = await zai.functions.invoke("web_search", {
       query,

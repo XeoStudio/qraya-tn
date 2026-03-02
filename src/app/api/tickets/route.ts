@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import ZAI from 'z-ai-web-dev-sdk'
+import { getZAI } from '@/lib/zai'
 
 // Helper to get current user from session
 async function getCurrentUser(req: NextRequest) {
@@ -22,7 +22,7 @@ async function getCurrentUser(req: NextRequest) {
 // Generate AI response for ticket
 async function generateAIResponse(ticketTitle: string, ticketMessage: string, category: string): Promise<string> {
   try {
-    const zai = await ZAI.create()
+    const zai = await getZAI()
 
     const systemPrompt = `أنت مساعد دعم فني لموقع "مساعد دراسة تونسي" - منصة تعليمية للطلاب التونسيين.
     

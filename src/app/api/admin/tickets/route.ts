@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import ZAI from 'z-ai-web-dev-sdk'
+import { getZAI } from '@/lib/zai'
 
 const SUPER_ADMIN_EMAIL = 'wissemlahkiri2@gmail.com'
 
@@ -29,7 +29,7 @@ async function analyzeTicket(title: string, messages: string[]): Promise<{
   suggestedAction: string
 }> {
   try {
-    const zai = await ZAI.create()
+    const zai = await getZAI()
     
     const messagesText = messages.join('\n')
     

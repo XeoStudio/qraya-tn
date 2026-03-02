@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import ZAI from 'z-ai-web-dev-sdk'
+import { getZAI } from '@/lib/zai'
 
 export async function POST(request: NextRequest) {
   try {
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     // Call AI with better error handling
     let response: string
     try {
-      const zai = await ZAI.create()
+      const zai = await getZAI()
       const completion = await zai.chat.completions.create({
         messages,
         temperature: 0.7,

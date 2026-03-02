@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import ZAI from 'z-ai-web-dev-sdk'
+import { getZAI } from '@/lib/zai'
 
 export async function POST(request: NextRequest) {
   try {
@@ -88,7 +88,7 @@ ${userInfo.length > 0 ? '- ' + userInfo.join('\n- ') : ''}
     
     let studyPlan: string
     try {
-      const zai = await ZAI.create()
+      const zai = await getZAI()
       const completion = await zai.chat.completions.create({
         messages: [
           { role: 'system', content: 'أنت مستشار تعليمي تونسي خبير في تخطيط الدراسة للطلاب التونسيين.' },

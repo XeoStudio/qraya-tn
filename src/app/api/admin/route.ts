@@ -170,19 +170,19 @@ async function getAdvancedStats() {
   
   // User growth by day (last 30 days)
   const usersByDay = await db.$queryRaw`
-    SELECT DATE(created_at) as date, COUNT(*) as count
+    SELECT DATE("createdAt") as date, COUNT(*) as count
     FROM "User"
-    WHERE created_at >= ${thirtyDaysAgo}
-    GROUP BY DATE(created_at)
+    WHERE "createdAt" >= ${thirtyDaysAgo}
+    GROUP BY DATE("createdAt")
     ORDER BY date DESC
   `
   
   // Chat activity by day
   const chatsByDay = await db.$queryRaw`
-    SELECT DATE(created_at) as date, COUNT(*) as count
+    SELECT DATE("createdAt") as date, COUNT(*) as count
     FROM "Chat"
-    WHERE created_at >= ${thirtyDaysAgo}
-    GROUP BY DATE(created_at)
+    WHERE "createdAt" >= ${thirtyDaysAgo}
+    GROUP BY DATE("createdAt")
     ORDER BY date DESC
   `
   
@@ -595,7 +595,7 @@ async function createPromoCode(body: {
   ocrUnlimited?: boolean
   customPlans?: boolean
 }, createdBy: string) {
-  const { code, planType, duration, maxUses, ...features } = body
+  const { code, planType, duration, maxUses, agentMode, advancedAI, unlimitedChat, priority, exportPDF, ocrUnlimited, customPlans } = body
   
   if (!code || !planType) {
     return NextResponse.json({ success: false, error: 'الكود ونوع الخطة مطلوبان' }, { status: 400 })
@@ -612,7 +612,13 @@ async function createPromoCode(body: {
       planType: planType as 'BASIC' | 'PREMIUM' | 'BAC_PRO',
       duration: duration || null,
       maxUses: maxUses || null,
-      ...features,
+      agentMode: agentMode ?? false,
+      advancedAI: advancedAI ?? false,
+      unlimitedChat: unlimitedChat ?? false,
+      priority: priority ?? false,
+      exportPDF: exportPDF ?? false,
+      ocrUnlimited: ocrUnlimited ?? false,
+      customPlans: customPlans ?? false,
       createdBy
     }
   })
