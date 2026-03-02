@@ -281,10 +281,11 @@ async function getUsers(searchParams: URLSearchParams) {
   
   const where: Record<string, unknown> = {}
   
+  // Use case-insensitive search without mode option (for PostgreSQL compatibility)
   if (search) {
     where.OR = [
-      { email: { contains: search, mode: 'insensitive' } },
-      { name: { contains: search, mode: 'insensitive' } }
+      { email: { contains: search.toLowerCase() } },
+      { name: { contains: search.toLowerCase() } }
     ]
   }
   

@@ -16,7 +16,10 @@ export async function POST(request: NextRequest) {
     })
     
     if (!session || session.expiresAt < new Date()) {
-      return NextResponse.json({ success: false, error: 'الجلسة منتهية، يرجى تسجيل الدخول مجدداً' }, { status: 401 })
+      return NextResponse.json({ 
+        success: false, 
+        error: 'الجلسة منتهية، يرجى تسجيل الدخول مجدداً' 
+      }, { status: 401 })
     }
     
     const body = await request.json()
@@ -25,27 +28,24 @@ export async function POST(request: NextRequest) {
     if (!content || content.trim().length < 10) {
       return NextResponse.json({ 
         success: false, 
-        error: 'المحتوى قصير جداً. أدخل نصاً أطول للتلخيص' 
+        error: 'المحتوى قصير جداً. أدخل نصاً أطول للتلخيص.' 
       }, { status: 400 })
     }
     
     const levelText = level ? `مستوى الطالب: ${level}` : 'مستوى عام - استخدم لغة بسيطة ومفهومة'
     
-    const systemPrompt = `أنت معلم تونسي خبير في تلخيص المحتوى التعليمي.
+    const systemPrompt = `أنت معلم تونسي خبير في تلخيص المحتوى التعليمي للطلاب التونسيين.
 
 ## مهمتك:
 قم بتلخيص المحتوى المقدم بطريقة مناسبة للطالب التونسي.
 
-## ${levelText}
-
 ## قواعد التلخيص:
 1. استخرج النقاط الرئيسية فقط (لا تذكر التفاصيل غير المهمة)
-2. استخدم لغة بسيطة وواضحة
+2. استخدم لغة بسيطة ومفهومة
 3. نظم الملخص في نقاط مرقمة
-4. أضف أمثلة توضيحية إذا لزم الأمر
+4. أضف أمثلة توضيحية عند الحاجة
 5. استخدم المصطلحات التونسية المناسبة
-6. أضف ملخص نهائي في جملة واحدة
-7. إذا كان المحتوى طويلاً، قسمه إلى أقسام
+6. أضف ملخص نهائي في جملة واحدة تلخص كل شيء
 
 ## تنسيق الرد:
 ### 📌 الملخص:
@@ -56,19 +56,31 @@ export async function POST(request: NextRequest) {
 ### 💡 الخلاصة:
 [جملة واحدة تلخص كل شيء]
 
-قم بتلخيص المحتوى التالي:`
+${levelText}
+
+المحتوى المراد تلخيصه:
+${content}`
     
-    const zai = await ZAI.create()
-    const completion = await zai.chat.completions.create({
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content }
-      ],
-      temperature: 0.5,
-      max_tokens: 1500
-    })
-    
-    const summary = completion.choices[0]?.message?.content || 'عذراً، لم أتمكن من التلخيص'
+    let response: string
+    try {
+      const zai = await ZAI.create()
+      const completion = await zai.chat.completions.create({
+        messages: [
+            { role: 'system', content: 'أنت معلم تونسي خبير في تلخيص المحتوى التعليمي.' },
+            { role: 'user', content: systemPrompt }
+          ],
+        temperature: 0.7,
+        max_tokens: 2500
+      })
+      
+      response = completion.choices[0]?.message?.content || 'عذراً، لم أتمكن من التلخيص.'
+    } catch (aiError) {
+      console.error('AI Summarize error:', aiError)
+      return NextResponse.json({ 
+        success: false, 
+        error: 'حدث خطأ في معالجة الطلب. يرجى المحاولة مرة أخرى.' 
+      })
+    }
     
     // Update points
     await db.user.update({
@@ -79,18 +91,18 @@ export async function POST(request: NextRequest) {
     // Log activity
     await db.activityLog.create({
       data: {
-        userId: session.user.id,
-        action: 'summarize',
-        details: `تلخيص محتوى (${content.length} حرف)`
+          userId: session.user.id,
+          action: 'summarize',
+          details: `تلخيص محتوى (${content.length} حرف)`
       }
     })
     
-    return NextResponse.json({ success: true, summary })
+    return NextResponse.json({ success: true, summary: response })
   } catch (error) {
     console.error('Summarize error:', error)
     return NextResponse.json({ 
       success: false, 
-      error: 'حدث خطأ أثناء التلخيص. حاول مرة أخرى.' 
+      error: 'حدث خطأ في التلخيص. حاول مرة أخرى.' 
     }, { status: 500 })
   }
 }

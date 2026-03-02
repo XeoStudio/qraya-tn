@@ -25,33 +25,28 @@ export async function POST(request: NextRequest) {
     }
     
     const body = await request.json()
-    const { topic, count = 8, level } = body as {
-      topic: string
-      count?: number
-      level?: string
-    }
+    const { topic } = body as { topic: string }
     
     if (!topic || topic.trim().length < 3) {
       return NextResponse.json({ 
         success: false, 
-        error: 'الموضوع قصير جداً' 
-      }, { status: 400 })
+        error: 'الموضوع قصير جداً. أدخل موضوعاً أطول.' 
+      })
     }
     
     const systemPrompt = `أنت معلم تونسي خبير في إنشاء بطاقات المراجعة للطلاب التونسيين.
 
 ## مهمتك:
-إنشاء ${count} بطاقة مراجعة (Flashcards) حول الموضوع المحدد.
+إنشاء 8 بطاقات مراجعة حول الموضوع المحدد.
 
 ## قواعد البطاقات:
 1. كل بطاقة تحتوي سؤال وإجابة
 2. الأسئلة مختصرة وواضحة
 3. الإجابات موجزة ومفيدة (1-3 جمل)
-4. ${level ? `مستوى الطالب: ${level}` : 'مناسب لجميع المستويات'}
-5. استخدم المصطلحات التونسية المناسبة
-6. ركز على المفاهيم الأساسية والتعريفات
+4. استخدم المصطلحات التونسية المناسبة
+5. ركز على المفاهيم الأساسية والتعريفات
 
-## تنسيق الرد (JSON فقط - بدون نص إضافي):
+## تنسيق الرد (JSON فقط):
 {
   "flashcards": [
     {
@@ -61,33 +56,44 @@ export async function POST(request: NextRequest) {
   ]
 }
 
-الموضوع: ${topic}`
+الموضوع: ${topic}
+أعد بتنسيق JSON فقط بدون أي نص إضافي.`
     
-    const zai = await ZAI.create()
-    const completion = await zai.chat.completions.create({
-      messages: [
-        { role: 'system', content: 'أنت معلم تونسي خبير في إنشاء بطاقات المراجعة. ترد بتنسيق JSON فقط.' },
-        { role: 'user', content: systemPrompt }
-      ],
-      temperature: 0.6,
-      max_tokens: 2000
-    })
-    
-    const responseText = completion.choices[0]?.message?.content || '{}'
-    
-    // Parse JSON from response
     let flashcards: Flashcard[] = []
+    
     try {
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/)
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0])
-        flashcards = parsed.flashcards || []
+      const zai = await ZAI.create()
+      const completion = await zai.chat.completions.create({
+        messages: [
+          { role: 'system', content: 'أنت معلم تونسي خبير في إنشاء بطاقات المراجعة. ترد بتنسيق JSON فقط.' },
+          { role: 'user', content: systemPrompt }
+        ],
+        temperature: 0.6,
+        max_tokens: 2000
+      })
+      
+      const responseText = completion.choices[0]?.message?.content || '{}'
+      
+      // Try to extract JSON from response
+      try {
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/)
+        if (jsonMatch) {
+          const cleanJson = jsonMatch[0]
+            .replace(/```json/g, '')
+            .replace(/```/g, '')
+            .trim()
+          const parsed = JSON.parse(cleanJson)
+          flashcards = parsed.flashcards || []
+        }
+      } catch (parseError) {
+        console.error('Parse error:', parseError)
       }
-    } catch (parseError) {
-      console.error('Failed to parse flashcards JSON:', parseError)
+      
+    } catch (aiError) {
+      console.error('AI error:', aiError)
       return NextResponse.json({ 
         success: false, 
-        error: 'لم أتمكن من إنشاء البطاقات بشكل صحيح. حاول مرة أخرى.' 
+        error: 'حدث خطأ في معالجة الطلب. حاول مرة أخرى.' 
       })
     }
     

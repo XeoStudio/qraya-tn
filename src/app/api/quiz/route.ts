@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     if (!topic || topic.trim().length < 3) {
       return NextResponse.json({ 
         success: false, 
-        error: 'الموضوع قصير جداً' 
+        error: 'الموضوع قصير جداً. أدخل موضوعاً أطول.' 
       }, { status: 400 })
     }
     
@@ -46,6 +46,8 @@ export async function POST(request: NextRequest) {
       medium: 'متوسط - للفهم العميق',
       hard: 'صعب - للامتحانات والتحدي'
     }[difficulty]
+    
+    const levelInfo = level ? `مستوى الطالب: ${level}` : 'مناسب لجميع المستويات'
     
     const systemPrompt = `أنت معلم تونسي خبير في إنشاء الأسئلة التدريبية للطلاب التونسيين.
 
@@ -57,7 +59,7 @@ export async function POST(request: NextRequest) {
 2. إجابة واحدة صحيحة فقط
 3. أضف شرح للإجابة الصحيحة
 4. مستوى الصعوبة: ${difficultyText}
-5. ${level ? `مستوى الطالب: ${level}` : 'مناسب لجميع المستويات'}
+5. ${levelInfo}
 6. استخدم المصطلحات والمناهج التونسية
 7. الأسئلة يجب أن تكون دقيقة وواضحة
 
@@ -75,36 +77,48 @@ export async function POST(request: NextRequest) {
 
 ملاحظة: correctAnswer هو رقم الخيار الصحيح (0 للأول، 1 للثاني، إلخ)
 
-الموضوع: ${topic}`
+الموضوع: ${topic}
+
+أعد بتنسيق JSON فقط بدون أي نص إضافي.`
     
-    const zai = await ZAI.create()
-    const completion = await zai.chat.completions.create({
-      messages: [
-        { role: 'system', content: 'أنت معلم تونسي خبير في إنشاء الأسئلة التدريبية. ترد بتنسيق JSON فقط.' },
-        { role: 'user', content: systemPrompt }
-      ],
-      temperature: 0.7,
-      max_tokens: 2500
-    })
-    
-    const responseText = completion.choices[0]?.message?.content || '{}'
-    
-    // Parse JSON from response
     let questions: QuizQuestion[] = []
+    
     try {
-      // Try to extract JSON from response
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/)
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0])
-        questions = parsed.questions || []
+      const zai = await ZAI.create()
+      const completion = await zai.chat.completions.create({
+        messages: [
+          { role: 'system', content: 'أنت معلم تونسي خبير في إنشاء الأسئلة التدريبية. ترد بتنسيق JSON فقط.' },
+          { role: 'user', content: systemPrompt }
+        ],
+        temperature: 0.7,
+        max_tokens: 2500
+      })
+      
+      const responseText = completion.choices[0]?.message?.content || '{}'
+      
+      // Parse JSON from response
+      try {
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/)
+        if (jsonMatch) {
+          const cleanJson = jsonMatch[0]
+            .replace(/```json/g, '')
+            .replace(/```/g, '')
+            .trim()
+          const parsed = JSON.parse(cleanJson)
+          questions = parsed.questions || []
+        }
+      } catch (parseError) {
+        console.error('Parse error:', parseError)
+        return NextResponse.json({ 
+          success: false, 
+          error: 'لم أتمكن من إنشاء الأسئلة بشكل صحيح. حاول مرة أخرى.' 
+        })
       }
-    } catch (parseError) {
-      console.error('Failed to parse quiz JSON:', parseError)
-      // Return a fallback
+    } catch (aiError) {
+      console.error('Quiz AI error:', aiError)
       return NextResponse.json({ 
         success: false, 
-        error: 'لم أتمكن من إنشاء الأسئلة بشكل صحيح. حاول مرة أخرى.',
-        raw: responseText 
+        error: 'حدث خطأ في معالجة الطلب. حاول مرة أخرى.' 
       })
     }
     
@@ -119,6 +133,15 @@ export async function POST(request: NextRequest) {
     await db.user.update({
       where: { id: session.user.id },
       data: { points: { increment: 3 } }
+    })
+    
+    // Log activity
+    await db.activityLog.create({
+      data: {
+          userId: session.user.id,
+          action: 'quiz',
+          details: `إنشاء ${count} أسئلة في ${topic}`
+      }
     })
     
     return NextResponse.json({ 
