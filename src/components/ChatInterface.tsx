@@ -20,7 +20,9 @@ import {
   ExternalLink,
   AlertCircle,
   RefreshCw,
-  GraduationCap
+  GraduationCap,
+  Zap,
+  Wand2
 } from 'lucide-react'
 import { AI_TIMEOUT, ERROR_MESSAGES } from '@/lib/constants'
 
@@ -49,11 +51,22 @@ const quickActions = [
   { icon: GraduationCap, label: 'وضع المعلم', prompt: 'أريد خطة دراسة لمادة ' }
 ]
 
+// Agent mode actions
+const agentActions = [
+  { label: '📝 إنشاء امتحان', prompt: 'أنشئ امتحاناً كاملاً في ' },
+  { label: '📋 إنشاء ملخص', prompt: 'أنشئ ملخصاً مفصلاً يمكن طباعته في ' },
+  { label: '❓ أسئلة امتحان', prompt: 'أنشئ أسئلة على شكل امتحان حقيقي في ' },
+  { label: '📊 خطة مراجعة', prompt: 'أنشئ خطة مراجعة مكثفة للامتحان في ' },
+  { label: '✅ حل تمارين', prompt: 'حل التمارين التالية خطوة بخطوة: ' },
+  { label: '📖 شرح مفصل', prompt: 'اشرح لي بالتفصيل مع أمثلة عملية: ' }
+]
+
 export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState(initialMessage || '')
   const [loading, setLoading] = useState(false)
   const [webSearchEnabled, setWebSearchEnabled] = useState(false)
+  const [agentMode, setAgentMode] = useState(false)
   const [searching, setSearching] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -216,6 +229,19 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* Agent Mode Toggle */}
+          <Button
+            variant={agentMode ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setAgentMode(!agentMode)}
+            className={`gap-2 ${agentMode 
+              ? 'bg-amber-500 text-white hover:bg-amber-600' 
+              : 'border-white/30 text-white hover:bg-white/10'
+            }`}
+          >
+            <Wand2 className="w-4 h-4" />
+            <span className="hidden sm:inline">وكيل ذكي</span>
+          </Button>
           {/* Web Search Toggle */}
           <Button
             variant={webSearchEnabled ? 'default' : 'outline'}
@@ -227,7 +253,7 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
             }`}
           >
             <Globe className="w-4 h-4" />
-            <span className="hidden sm:inline">البحث في الإنترنت</span>
+            <span className="hidden sm:inline">البحث</span>
           </Button>
           {messages.length > 0 && (
             <Button
@@ -268,21 +294,45 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
                 </Badge>
               )}
               
-              {/* Quick suggestions */}
-              <div className="flex flex-wrap gap-2 mt-2 justify-center">
-                {quickActions.map((action) => (
-                  <Button
-                    key={action.label}
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setInput(action.prompt)}
-                    className="text-sm bg-white dark:bg-gray-800"
-                  >
-                    <action.icon className="w-4 h-4 ml-1" />
-                    {action.label}
-                  </Button>
-                ))}
-              </div>
+              {agentMode && (
+                <Badge className="mb-4 bg-amber-500">
+                  <Wand2 className="w-3 h-3 mr-1" />
+                  وضع الوكيل الذكي مفعّل
+                </Badge>
+              )}
+              
+              {/* Agent Actions */}
+              {agentMode ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2 max-w-lg">
+                  {agentActions.map((action) => (
+                    <Button
+                      key={action.label}
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setInput(action.prompt)}
+                      className="text-xs bg-white dark:bg-gray-800 justify-start"
+                    >
+                      {action.label}
+                    </Button>
+                  ))}
+                </div>
+              ) : (
+                /* Quick suggestions */
+                <div className="flex flex-wrap gap-2 mt-2 justify-center">
+                  {quickActions.map((action) => (
+                    <Button
+                      key={action.label}
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setInput(action.prompt)}
+                      className="text-sm bg-white dark:bg-gray-800"
+                    >
+                      <action.icon className="w-4 h-4 ml-1" />
+                      {action.label}
+                    </Button>
+                  ))}
+                </div>
+              )}
 
               {/* Keyboard hint */}
               <p className="text-xs text-gray-400 mt-6">

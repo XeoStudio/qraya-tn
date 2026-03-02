@@ -288,7 +288,7 @@ async function createPromoCode(body: {
   const promoCode = await db.promoCode.create({
     data: {
       code: code.toUpperCase(),
-      planType: planType as 'BASIC' | 'PREMIUM' | 'LIFETIME',
+      planType: planType as 'BASIC' | 'PREMIUM' | 'BAC_PRO',
       duration: duration || null,
       maxUses: maxUses || null,
       ...features,
@@ -411,7 +411,7 @@ async function createAdmin(body: { email: string; password: string; name: string
       isVerified: true,
       subscription: {
         create: {
-          plan: 'LIFETIME',
+          plan: 'PREMIUM',
           status: 'ACTIVE',
           agentMode: true,
           advancedAI: true,

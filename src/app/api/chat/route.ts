@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     
     // Check quota (skip for admins and premium)
     const isPremium = user.role === 'ADMIN' || user.role === 'PREMIUM' || 
-                      subscription?.plan === 'PREMIUM' || subscription?.plan === 'LIFETIME'
+                      subscription?.plan === 'PREMIUM' || subscription?.plan === 'BAC_PRO'
     
     if (!isPremium && subscription && !subscription.unlimitedChat && subscription.chatsUsed >= subscription.quotaLimit) {
       return NextResponse.json({ 
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
     const completion = await zai.chat.completions.create({
       messages,
       temperature: 0.7,
-      max_tokens: isPremium ? 3000 : 2000
+      max_tokens: isPremium ? 4000 : 2000
     })
     
     const response = completion.choices[0]?.message?.content || 'عذراً، لم أتمكن من توليد رد. حاول مرة أخرى.'
