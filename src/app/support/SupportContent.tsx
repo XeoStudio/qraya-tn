@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { 
   Ticket, 
   Plus, 
@@ -21,7 +22,9 @@ import {
   User,
   ChevronLeft,
   Loader2,
-  RefreshCw
+  RefreshCw,
+  Headphones,
+  Star
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { TICKET_CATEGORIES, TICKET_STATUS_LABELS } from '@/lib/constants'
@@ -62,6 +65,12 @@ export default function SupportContent() {
   const [replyMessage, setReplyMessage] = useState('')
   const [sendingReply, setSendingReply] = useState(false)
   const [showNewTicket, setShowNewTicket] = useState(false)
+  
+  // Rating dialog
+  const [showRatingDialog, setShowRatingDialog] = useState(false)
+  const [rating, setRating] = useState(5)
+  const [feedback, setFeedback] = useState('')
+  const [submittingRating, setSubmittingRating] = useState(false)
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -94,7 +103,6 @@ export default function SupportContent() {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          action: 'create',
           title: newTicketTitle,
           category: newTicketCategory,
           message: newTicketMessage
@@ -123,11 +131,10 @@ export default function SupportContent() {
     setSendingReply(true)
     try {
       const res = await fetch('/api/tickets', {
-        method: 'POST',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          action: 'reply',
           ticketId: selectedTicket.id,
           message: replyMessage
         })
@@ -150,12 +157,12 @@ export default function SupportContent() {
 
     try {
       const res = await fetch('/api/tickets', {
-        method: 'POST',
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          action: 'request_human',
-          ticketId: selectedTicket.id
+          ticketId: selectedTicket.id,
+          action: 'request_human'
         })
       })
       const data = await res.json()
@@ -165,6 +172,36 @@ export default function SupportContent() {
       }
     } catch (error) {
       console.error('Error requesting human:', error)
+    }
+  }
+
+  const submitRating = async () => {
+    if (!selectedTicket) return
+    
+    setSubmittingRating(true)
+    try {
+      const res = await fetch('/api/tickets', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          ticketId: selectedTicket.id,
+          action: 'rate',
+          rating,
+          feedback
+        })
+      })
+      const data = await res.json()
+      if (data.success) {
+        setSelectedTicket(data.ticket)
+        setTickets(prev => prev.map(t => t.id === data.ticket.id ? data.ticket : t))
+        setShowRatingDialog(false)
+        setFeedback('')
+      }
+    } catch (error) {
+      console.error('Error submitting rating:', error)
+    } finally {
+      setSubmittingRating(false)
     }
   }
 
@@ -193,16 +230,16 @@ export default function SupportContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
-      <div className="container mx-auto px-4 max-w-6xl">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-4 sm:py-8">
+      <div className="container mx-auto px-3 sm:px-4 max-w-6xl">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
           <div className="flex items-center gap-3">
             <Link href="/" className="text-gray-500 hover:text-gray-700">
               <ChevronLeft className="w-6 h-6" />
             </Link>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
                 مركز الدعم الفني
               </h1>
               <p className="text-gray-500 text-sm">نحن هنا لمساعدتك</p>
@@ -210,16 +247,16 @@ export default function SupportContent() {
           </div>
           <Button
             onClick={() => setShowNewTicket(true)}
-            className="bg-blue-600 hover:bg-blue-700 gap-2"
+            className="bg-blue-600 hover:bg-blue-700 gap-2 w-full sm:w-auto"
           >
             <Plus className="w-4 h-4" />
             تذكرة جديدة
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
           {/* Tickets List */}
-          <Card className="lg:col-span-1 p-4 border-0 shadow-lg">
+          <Card className="lg:col-span-1 p-3 sm:p-4 border-0 shadow-lg">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-gray-900 dark:text-white">
                 تذاكرك
@@ -239,7 +276,7 @@ export default function SupportContent() {
                 <p className="text-gray-500 text-sm">لا توجد تذاكر بعد</p>
               </div>
             ) : (
-              <ScrollArea className="h-[500px]">
+              <ScrollArea className="h-[450px] sm:h-[500px]">
                 <div className="space-y-2">
                   {tickets.map((ticket) => (
                     <button
@@ -257,10 +294,16 @@ export default function SupportContent() {
                         </span>
                         <div className={`w-2 h-2 rounded-full ${getStatusColor(ticket.status)}`} />
                       </div>
-                      <div className="flex items-center gap-2 text-xs text-gray-500">
+                      <div className="flex items-center gap-2 flex-wrap text-xs text-gray-500">
                         <span>{getCategoryLabel(ticket.category)}</span>
                         <span>•</span>
                         <span>{TICKET_STATUS_LABELS[ticket.status]}</span>
+                        {ticket.needsHumanIntervention && (
+                          <>
+                            <span>•</span>
+                            <Badge variant="destructive" className="text-xs">تدخل يدوي</Badge>
+                          </>
+                        )}
                       </div>
                     </button>
                   ))}
@@ -270,7 +313,7 @@ export default function SupportContent() {
           </Card>
 
           {/* Ticket Detail or New Ticket */}
-          <Card className="lg:col-span-2 p-4 border-0 shadow-lg">
+          <Card className="lg:col-span-2 p-3 sm:p-4 border-0 shadow-lg">
             {showNewTicket ? (
               <form onSubmit={createTicket} className="space-y-4">
                 <div className="flex items-center justify-between mb-4">
@@ -349,9 +392,9 @@ export default function SupportContent() {
                 </Button>
               </form>
             ) : selectedTicket ? (
-              <div className="flex flex-col h-[600px]">
+              <div className="flex flex-col h-[500px] sm:h-[600px]">
                 {/* Ticket Header */}
-                <div className="pb-4 border-b mb-4">
+                <div className="pb-3 border-b mb-3">
                   <h2 className="font-semibold text-gray-900 dark:text-white mb-2">
                     {selectedTicket.title}
                   </h2>
@@ -364,8 +407,14 @@ export default function SupportContent() {
                     </Badge>
                     {selectedTicket.needsHumanIntervention && (
                       <Badge variant="outline" className="border-orange-500 text-orange-500">
-                        <AlertCircle className="w-3 h-3 ml-1" />
-                        طلب تدخل يدوي
+                        <Headphones className="w-3 h-3 ml-1" />
+                        طلب مساعدة بشرية
+                      </Badge>
+                    )}
+                    {selectedTicket.rating && (
+                      <Badge variant="outline" className="border-green-500 text-green-500">
+                        <Star className="w-3 h-3 ml-1 fill-current" />
+                        {selectedTicket.rating}/5
                       </Badge>
                     )}
                   </div>
@@ -373,11 +422,11 @@ export default function SupportContent() {
 
                 {/* Messages */}
                 <ScrollArea className="flex-1 pr-2">
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     {selectedTicket.messages.map((msg) => (
                       <div
                         key={msg.id}
-                        className={`flex gap-3 ${
+                        className={`flex gap-2 ${
                           msg.isFromAI || msg.isFromAdmin ? '' : 'flex-row-reverse'
                         }`}
                       >
@@ -391,19 +440,23 @@ export default function SupportContent() {
                           {msg.isFromAI ? (
                             <Bot className="w-4 h-4 text-white" />
                           ) : msg.isFromAdmin ? (
-                            <User className="w-4 h-4 text-white" />
+                            <Headphones className="w-4 h-4 text-white" />
                           ) : (
                             <User className="w-4 h-4 text-white" />
                           )}
                         </div>
-                        <div className={`rounded-xl px-4 py-2 max-w-[80%] ${
-                          msg.isFromAI || msg.isFromAdmin
-                            ? 'bg-white dark:bg-gray-800 shadow-sm'
+                        <div className={`rounded-xl px-3 py-2 max-w-[85%] ${
+                          msg.isFromAI
+                            ? 'bg-purple-50 dark:bg-purple-900/30'
+                            : msg.isFromAdmin
+                            ? 'bg-green-50 dark:bg-green-900/30'
                             : 'bg-blue-500 text-white'
                         }`}>
                           <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                           <p className="text-xs opacity-60 mt-1">
                             {new Date(msg.createdAt).toLocaleString('ar')}
+                            {msg.isFromAdmin && ' • فريق الدعم'}
+                            {msg.isFromAI && ' • المساعد الذكي'}
                           </p>
                         </div>
                       </div>
@@ -412,8 +465,8 @@ export default function SupportContent() {
                 </ScrollArea>
 
                 {/* Reply Form */}
-                {selectedTicket.status !== 'CLOSED' && (
-                  <div className="pt-4 border-t mt-4">
+                {selectedTicket.status !== 'CLOSED' ? (
+                  <div className="pt-3 border-t mt-3">
                     <form onSubmit={sendReply} className="space-y-3">
                       <Textarea
                         value={replyMessage}
@@ -422,7 +475,7 @@ export default function SupportContent() {
                         rows={2}
                         className="resize-none"
                       />
-                      <div className="flex gap-2">
+                      <div className="flex flex-col sm:flex-row gap-2">
                         <Button
                           type="submit"
                           disabled={sendingReply || !replyMessage.trim()}
@@ -434,24 +487,61 @@ export default function SupportContent() {
                             <Send className="w-4 h-4" />
                           )}
                         </Button>
-                        {!selectedTicket.needsHumanIntervention && (
+                        {!selectedTicket.needsHumanIntervention ? (
                           <Button
                             type="button"
                             variant="outline"
                             onClick={requestHumanIntervention}
-                            className="gap-2"
+                            className="gap-2 border-orange-500 text-orange-500 hover:bg-orange-50"
                           >
-                            <User className="w-4 h-4" />
-                            طلب تدخل يدوي
+                            <Headphones className="w-4 h-4" />
+                            مساعدة بشرية
                           </Button>
+                        ) : (
+                          <Badge variant="outline" className="border-orange-500 text-orange-500 px-3 py-2">
+                            <Clock className="w-4 h-4 ml-1" />
+                            جاري انتظار الرد
+                          </Badge>
                         )}
                       </div>
                     </form>
                   </div>
+                ) : (
+                  <div className="pt-3 border-t mt-3">
+                    {!selectedTicket.rating ? (
+                      <Button
+                        onClick={() => setShowRatingDialog(true)}
+                        className="w-full"
+                        variant="outline"
+                      >
+                        <Star className="w-4 h-4 ml-2" />
+                        قيّم تجربتك
+                      </Button>
+                    ) : (
+                      <div className="text-center text-gray-500 text-sm">
+                        <CheckCircle className="w-5 h-5 mx-auto mb-2 text-green-500" />
+                        تم إغلاق التذكرة
+                        {selectedTicket.rating && (
+                          <div className="flex justify-center gap-1 mt-2">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <Star
+                                key={star}
+                                className={`w-4 h-4 ${
+                                  star <= (selectedTicket.rating || 0)
+                                    ? 'text-yellow-500 fill-yellow-500'
+                                    : 'text-gray-300'
+                                }`}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center h-full text-center">
+              <div className="flex flex-col items-center justify-center h-[400px] text-center">
                 <MessageCircle className="w-16 h-16 text-gray-300 mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
                   اختر تذكرة لعرضها
@@ -467,7 +557,84 @@ export default function SupportContent() {
             )}
           </Card>
         </div>
+
+        {/* Info Card */}
+        <Card className="mt-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border-0">
+          <div className="flex flex-col sm:flex-row items-center gap-4 text-center sm:text-right">
+            <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center text-white flex-shrink-0">
+              <Bot className="w-6 h-6" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-1">
+                المساعد الذكي متاح 24/7
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                يمكنك طرح أسئلتك في أي وقت وسيقوم المساعد الذكي بالإجابة عليها فوراً.
+                إذا احتجت مساعدة إضافية، اضغط على زر "مساعدة بشرية" وسيتواصل معك فريق الدعم.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Badge variant="outline" className="border-green-500 text-green-600">
+                <CheckCircle className="w-3 h-3 ml-1" />
+                رد فوري
+              </Badge>
+              <Badge variant="outline" className="border-blue-500 text-blue-600">
+                <Headphones className="w-3 h-3 ml-1" />
+                دعم بشري
+              </Badge>
+            </div>
+          </div>
+        </Card>
       </div>
+
+      {/* Rating Dialog */}
+      <Dialog open={showRatingDialog} onOpenChange={setShowRatingDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>قيّم تجربتك</DialogTitle>
+            <DialogDescription>
+              كيف كانت تجربتك مع خدمة الدعم؟
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex justify-center gap-2">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  onClick={() => setRating(star)}
+                  className="transition-transform hover:scale-110"
+                >
+                  <Star
+                    className={`w-10 h-10 ${
+                      star <= rating
+                        ? 'text-yellow-500 fill-yellow-500'
+                        : 'text-gray-300'
+                    }`}
+                  />
+                </button>
+              ))}
+            </div>
+            <Textarea
+              value={feedback}
+              onChange={(e) => setFeedback(e.target.value)}
+              placeholder="أخبرنا برأيك (اختياري)..."
+              rows={3}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowRatingDialog(false)}>
+              إلغاء
+            </Button>
+            <Button onClick={submitRating} disabled={submittingRating}>
+              {submittingRating ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                'إرسال التقييم'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
