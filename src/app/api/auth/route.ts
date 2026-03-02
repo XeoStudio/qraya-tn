@@ -66,7 +66,7 @@ async function ensureSuperAdminPrivileges(userId: string) {
     await db.subscription.update({
       where: { userId },
       data: {
-        plan: 'LIFETIME',
+        plan: 'PREMIUM',
         status: 'ACTIVE',
         agentMode: true,
         advancedAI: true,
@@ -83,7 +83,7 @@ async function ensureSuperAdminPrivileges(userId: string) {
     await db.subscription.create({
       data: {
         userId,
-        plan: 'LIFETIME',
+        plan: 'PREMIUM',
         status: 'ACTIVE',
         agentMode: true,
         advancedAI: true,
@@ -395,7 +395,7 @@ async function handleRegister(body: {
       isVerified: isSuper,
       subscription: {
         create: {
-          plan: isSuper ? 'LIFETIME' : 'FREE',
+          plan: isSuper ? 'PREMIUM' : 'FREE',
           status: 'ACTIVE',
           agentMode: isSuper,
           advancedAI: isSuper,
