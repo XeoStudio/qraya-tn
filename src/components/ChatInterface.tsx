@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { 
   Send, 
   Loader2, 
@@ -21,8 +22,20 @@ import {
   AlertCircle,
   RefreshCw,
   GraduationCap,
-  Zap,
-  Wand2
+  Wand2,
+  Image,
+  FileUp,
+  X,
+  Download,
+  BarChart3,
+  FileDown,
+  PenTool,
+  Calculator,
+  Languages,
+  Copy,
+  Check,
+  Mic,
+  MicOff
 } from 'lucide-react'
 import { AI_TIMEOUT, ERROR_MESSAGES } from '@/lib/constants'
 
@@ -32,6 +45,10 @@ interface Message {
   content: string
   sources?: SearchResult[]
   timestamp: Date
+  type?: 'text' | 'file' | 'image' | 'code' | 'chart' | 'pdf'
+  fileData?: { name: string; content: string; type: string }
+  imageData?: { url: string; extractedText?: string }
+  chartData?: { type: string; data: unknown; title: string }
 }
 
 interface SearchResult {
@@ -48,18 +65,180 @@ const quickActions = [
   { icon: BookOpen, label: 'شرح درس', prompt: 'اشرح لي درس ' },
   { icon: FileText, label: 'تلخيص', prompt: 'لخص لي ' },
   { icon: Sparkles, label: 'مراجعة', prompt: 'ساعدني على مراجعة ' },
-  { icon: GraduationCap, label: 'وضع المعلم', prompt: 'أريد خطة دراسة لمادة ' }
+  { icon: GraduationCap, label: 'خطة دراسة', prompt: 'أنشئ لي خطة دراسة لمادة ' }
 ]
 
-// Agent mode actions
-const agentActions = [
-  { label: '📝 إنشاء امتحان', prompt: 'أنشئ امتحاناً كاملاً في ' },
-  { label: '📋 إنشاء ملخص', prompt: 'أنشئ ملخصاً مفصلاً يمكن طباعته في ' },
-  { label: '❓ أسئلة امتحان', prompt: 'أنشئ أسئلة على شكل امتحان حقيقي في ' },
-  { label: '📊 خطة مراجعة', prompt: 'أنشئ خطة مراجعة مكثفة للامتحان في ' },
-  { label: '✅ حل تمارين', prompt: 'حل التمارين التالية خطوة بخطوة: ' },
-  { label: '📖 شرح مفصل', prompt: 'اشرح لي بالتفصيل مع أمثلة عملية: ' }
+// Agent mode capabilities
+const agentCapabilities = [
+  { 
+    icon: FileDown, 
+    label: '📄 إنشاء PDF', 
+    prompt: 'أنشئ ملخص PDF مفصل في ',
+    description: 'ملخص منسق للطباعة'
+  },
+  { 
+    icon: BarChart3, 
+    label: '📊 رسم بياني', 
+    prompt: 'ارسم لي دالة رياضية: ',
+    description: 'رسم دوال وبيانات'
+  },
+  { 
+    icon: PenTool, 
+    label: '📝 امتحان كامل', 
+    prompt: 'أنشئ امتحاناً كاملاً مع التصحيح في مادة ',
+    description: 'امتحان مع الحل'
+  },
+  { 
+    icon: Calculator, 
+    label: '🔢 حل مسائل', 
+    prompt: 'حل هذه المسألة خطوة بخطوة مع الشرح: ',
+    description: 'حل تفصيلي'
+  },
+  { 
+    icon: Languages, 
+    label: '🌐 ترجمة', 
+    prompt: 'ترجم وأشرح هذا النص: ',
+    description: 'ترجمة مع شرح'
+  },
+  { 
+    icon: FileText, 
+    label: '📋 خط مراجعة', 
+    prompt: 'أنشئ خطة مراجعة مكثفة للبكالوريا في مادة ',
+    description: 'خطة Bac'
+  }
 ]
+
+// Format AI response with proper markdown
+function formatAIResponse(content: string): React.ReactNode {
+  // Split content into sections
+  const lines = content.split('\n')
+  const elements: React.ReactNode[] = []
+  
+  lines.forEach((line, index) => {
+    const key = `line-${index}`
+    
+    // Headers
+    if (line.startsWith('### ')) {
+      elements.push(
+        <h4 key={key} className="font-bold text-base mt-4 mb-2 text-purple-700 dark:text-purple-300">
+          {line.replace('### ', '')}
+        </h4>
+      )
+    } else if (line.startsWith('## ')) {
+      elements.push(
+        <h3 key={key} className="font-bold text-lg mt-4 mb-2 text-blue-700 dark:text-blue-300 border-b pb-1">
+          {line.replace('## ', '')}
+        </h3>
+      )
+    } else if (line.startsWith('# ')) {
+      elements.push(
+        <h2 key={key} className="font-bold text-xl mt-4 mb-3 text-gray-800 dark:text-white">
+          {line.replace('# ', '')}
+        </h2>
+      )
+    }
+    // Bold text
+    else if (line.startsWith('**') && line.endsWith('**')) {
+      elements.push(
+        <p key={key} className="font-bold text-sm my-1">
+          {line.replace(/\*\*/g, '')}
+        </p>
+      )
+    }
+    // List items
+    else if (line.startsWith('- ') || line.startsWith('• ')) {
+      elements.push(
+        <div key={key} className="flex items-start gap-2 my-1 text-sm">
+          <span className="text-blue-500 mt-1">•</span>
+          <span>{formatInlineStyles(line.replace(/^[-•] /, ''))}</span>
+        </div>
+      )
+    }
+    // Numbered list
+    else if (/^\d+\.\s/.test(line)) {
+      const match = line.match(/^(\d+)\.\s(.*)/)
+      if (match) {
+        elements.push(
+          <div key={key} className="flex items-start gap-2 my-1 text-sm">
+            <span className="font-bold text-purple-600 min-w-[20px]">{match[1]}.</span>
+            <span>{formatInlineStyles(match[2])}</span>
+          </div>
+        )
+      }
+    }
+    // Code blocks
+    else if (line.startsWith('```')) {
+      // Skip code fence markers
+    }
+    // Inline code
+    else if (line.includes('`') && !line.includes('```')) {
+      elements.push(
+        <p key={key} className="text-sm my-1">
+          {formatInlineStyles(line)}
+        </p>
+      )
+    }
+    // Regular text
+    else if (line.trim()) {
+      elements.push(
+        <p key={key} className="text-sm my-1">
+          {formatInlineStyles(line)}
+        </p>
+      )
+    }
+    // Empty line
+    else {
+      elements.push(<div key={key} className="h-2" />)
+    }
+  })
+  
+  return <div className="space-y-0.5">{elements}</div>
+}
+
+// Format inline styles (bold, italic, code)
+function formatInlineStyles(text: string): React.ReactNode {
+  const parts: React.ReactNode[] = []
+  let remaining = text
+  let key = 0
+  
+  // Bold
+  const boldMatch = remaining.match(/\*\*(.+?)\*\*/)
+  if (boldMatch) {
+    const [full, content] = boldMatch
+    const index = remaining.indexOf(full)
+    if (index > 0) {
+      parts.push(remaining.substring(0, index))
+    }
+    parts.push(<strong key={`b-${key++}`} className="font-bold">{content}</strong>)
+    remaining = remaining.substring(index + full.length)
+    if (remaining) {
+      parts.push(formatInlineStyles(remaining))
+    }
+    return parts
+  }
+  
+  // Inline code
+  const codeMatch = remaining.match(/`(.+?)`/)
+  if (codeMatch) {
+    const [full, content] = codeMatch
+    const index = remaining.indexOf(full)
+    if (index > 0) {
+      parts.push(remaining.substring(0, index))
+    }
+    parts.push(
+      <code key={`c-${key++}`} className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-xs font-mono">
+        {content}
+      </code>
+    )
+    remaining = remaining.substring(index + full.length)
+    if (remaining) {
+      parts.push(formatInlineStyles(remaining))
+    }
+    return parts
+  }
+  
+  return text
+}
 
 export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([])
@@ -69,15 +248,19 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
   const [agentMode, setAgentMode] = useState(false)
   const [searching, setSearching] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null)
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null)
+  const [copiedId, setCopiedId] = useState<string | null>(null)
+  
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
 
-  // Auto scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, loading])
 
-  // Focus textarea on mount
   useEffect(() => {
     textareaRef.current?.focus()
   }, [])
@@ -101,6 +284,69 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
     }
   }
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    
+    // Check file type
+    const allowedTypes = [
+      'text/plain', 'text/markdown', 'text/csv',
+      'application/pdf', 'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    ]
+    
+    if (!allowedTypes.includes(file.type) && !file.name.match(/\.(txt|md|csv|pdf|doc|docx|xlsx)$/i)) {
+      setError('نوع الملف غير مدعوم. الأنواع المدعومة: txt, md, csv, pdf, doc, docx, xlsx')
+      return
+    }
+    
+    // Read file content
+    const reader = new FileReader()
+    reader.onload = async (event) => {
+      const content = event.target?.result as string
+      setUploadedFile(file)
+      setInput(prev => prev + `\n\n[ملف مرفق: ${file.name}]\n${content.substring(0, 2000)}${content.length > 2000 ? '...' : ''}`)
+    }
+    reader.readAsText(file)
+  }
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    
+    // Check if it's an image
+    if (!file.type.startsWith('image/')) {
+      setError('يرجى رفع صورة فقط')
+      return
+    }
+    
+    // Read image as base64
+    const reader = new FileReader()
+    reader.onload = async (event) => {
+      const base64 = event.target?.result as string
+      setUploadedImage(base64)
+      
+      // OCR extraction
+      try {
+        const res = await fetch('/api/ocr', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: base64.split(',')[1] }),
+          credentials: 'include'
+        })
+        const data = await res.json()
+        
+        if (data.success && data.text) {
+          setInput(prev => prev + `\n\n[نص مستخرج من الصورة]\n${data.text}`)
+        }
+      } catch {
+        setInput(prev => prev + '\n\n[تم رفع الصورة]')
+      }
+    }
+    reader.readAsDataURL(file)
+  }
+
   const sendMessage = useCallback(async () => {
     if (!input.trim() || loading) return
 
@@ -109,28 +355,30 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
     setError(null)
     
     const tempId = `temp-${Date.now()}`
-    setMessages(prev => [...prev, { 
+    const newMessage: Message = { 
       id: tempId, 
       role: 'user', 
       content: userMessage, 
-      timestamp: new Date() 
-    }])
+      timestamp: new Date(),
+      type: uploadedFile ? 'file' : uploadedImage ? 'image' : 'text',
+      imageData: uploadedImage ? { url: uploadedImage } : undefined
+    }
+    
+    setMessages(prev => [...prev, newMessage])
     setLoading(true)
+    setUploadedFile(null)
+    setUploadedImage(null)
 
-    // Create AbortController for timeout
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), AI_TIMEOUT)
 
     let sources: SearchResult[] = []
 
-    // Search web if enabled
     if (webSearchEnabled) {
       setSearching(true)
       try {
         sources = await searchWeb(userMessage, controller.signal)
-      } catch {
-        // Ignore abort errors for search
-      }
+      } catch {}
       setSearching(false)
     }
 
@@ -142,7 +390,8 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
           message: userMessage,
           history: messages.map(m => ({ role: m.role, content: m.content })),
           webResults: sources,
-          enableWebSearch: webSearchEnabled
+          enableWebSearch: webSearchEnabled,
+          agentMode
         }),
         credentials: 'include',
         signal: controller.signal
@@ -188,20 +437,20 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
     } finally {
       setLoading(false)
     }
-  }, [input, loading, messages, webSearchEnabled])
+  }, [input, loading, messages, webSearchEnabled, agentMode, uploadedFile, uploadedImage])
 
   const clearChat = () => {
     setMessages([])
     setError(null)
+    setUploadedFile(null)
+    setUploadedImage(null)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Enter = سطر جديد، Ctrl+Enter = إرسال
     if (e.key === 'Enter' && e.ctrlKey) {
       e.preventDefault()
       sendMessage()
     }
-    // Enter alone creates new line (default behavior)
   }
 
   const retryLastMessage = () => {
@@ -215,52 +464,62 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
     }
   }
 
+  const copyToClipboard = async (content: string, id: string) => {
+    try {
+      await navigator.clipboard.writeText(content)
+      setCopiedId(id)
+      setTimeout(() => setCopiedId(null), 2000)
+    } catch {}
+  }
+
   return (
-    <div className="flex flex-col h-[600px] max-w-3xl mx-auto rounded-xl border bg-white dark:bg-gray-800 shadow-xl overflow-hidden">
-      {/* Header - Fixed */}
-      <div className="flex-shrink-0 flex items-center justify-between p-4 border-b bg-gradient-to-r from-blue-600 to-purple-600 text-white">
+    <div className="flex flex-col h-[650px] max-w-3xl mx-auto rounded-xl border bg-white dark:bg-gray-800 shadow-xl overflow-hidden">
+      {/* Header */}
+      <div className="flex-shrink-0 flex items-center justify-between p-3 border-b bg-gradient-to-r from-blue-600 to-purple-600 text-white">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
             <Bot className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="font-semibold">مساعد دراسة تونسي</h3>
-            <p className="text-xs text-white/80">مدعوم بالذكاء الاصطناعي</p>
+            <h3 className="font-semibold text-sm">مساعد دراسة تونسي</h3>
+            <p className="text-xs text-white/80">
+              {agentMode ? '🤖 وضع الوكيل الذكي' : 'مدعوم بالذكاء الاصطناعي'}
+            </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {/* Agent Mode Toggle */}
+        <div className="flex items-center gap-1">
+          {/* Agent Mode */}
           <Button
             variant={agentMode ? 'default' : 'outline'}
             size="sm"
             onClick={() => setAgentMode(!agentMode)}
-            className={`gap-2 ${agentMode 
-              ? 'bg-amber-500 text-white hover:bg-amber-600' 
+            className={`gap-1 text-xs ${agentMode 
+              ? 'bg-amber-500 text-white hover:bg-amber-600 border-0' 
               : 'border-white/30 text-white hover:bg-white/10'
             }`}
           >
-            <Wand2 className="w-4 h-4" />
-            <span className="hidden sm:inline">وكيل ذكي</span>
+            <Wand2 className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">وكيل</span>
           </Button>
-          {/* Web Search Toggle */}
+          {/* Web Search */}
           <Button
             variant={webSearchEnabled ? 'default' : 'outline'}
             size="sm"
             onClick={() => setWebSearchEnabled(!webSearchEnabled)}
-            className={`gap-2 ${webSearchEnabled 
-              ? 'bg-white text-blue-600 hover:bg-white/90' 
+            className={`gap-1 text-xs ${webSearchEnabled 
+              ? 'bg-white text-blue-600 hover:bg-white/90 border-0' 
               : 'border-white/30 text-white hover:bg-white/10'
             }`}
           >
-            <Globe className="w-4 h-4" />
-            <span className="hidden sm:inline">البحث</span>
+            <Globe className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">بحث</span>
           </Button>
           {messages.length > 0 && (
             <Button
               variant="ghost"
               size="sm"
               onClick={clearChat}
-              className="text-white hover:bg-white/20"
+              className="text-white hover:bg-white/20 p-2"
             >
               <Trash2 className="w-4 h-4" />
             </Button>
@@ -268,122 +527,136 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
         </div>
       </div>
 
-      {/* Messages Area - Scrollable */}
+      {/* Messages */}
       <div className="flex-1 overflow-hidden">
-        <ScrollArea className="h-full p-4 bg-gray-50 dark:bg-gray-900">
+        <ScrollArea className="h-full p-3 bg-gray-50 dark:bg-gray-900">
           {messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center min-h-[350px]">
+            <div className="flex flex-col items-center justify-center h-full text-center min-h-[400px]">
               <motion.div
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
-                className="w-20 h-20 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center mb-4"
+                className="w-16 h-16 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center mb-3"
               >
-                <Sparkles className="w-10 h-10 text-white" />
+                <Sparkles className="w-8 h-8 text-white" />
               </motion.div>
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                كيف أقدر نساعدك اليوم؟
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                كيف أقدر نساعدك؟
               </h3>
-              <p className="text-gray-500 dark:text-gray-400 max-w-md mb-4">
-                اسألني عن أي درس أو مفهوم، وسأشرحه لك بطريقة بسيطة ومفهومة
+              <p className="text-gray-500 dark:text-gray-400 max-w-sm text-sm mb-3">
+                {agentMode 
+                  ? 'وضع الوكيل الذكي: إنشاء امتحانات، رسوم بيانية، PDF، وحلول مفصلة'
+                  : 'اسألني عن أي درس وسأشرحه لك بطريقة بسيطة'
+                }
               </p>
               
-              {webSearchEnabled && (
-                <Badge variant="secondary" className="mb-4">
-                  <Globe className="w-3 h-3 mr-1" />
-                  البحث في الإنترنت مفعّل
-                </Badge>
-              )}
+              <div className="flex flex-wrap gap-1.5 mb-4">
+                {webSearchEnabled && (
+                  <Badge variant="secondary" className="text-xs">
+                    <Globe className="w-3 h-3 mr-1" />
+                    البحث مفعّل
+                  </Badge>
+                )}
+                {agentMode && (
+                  <Badge className="text-xs bg-amber-500">
+                    <Wand2 className="w-3 h-3 mr-1" />
+                    الوكيل مفعّل
+                  </Badge>
+                )}
+              </div>
               
-              {agentMode && (
-                <Badge className="mb-4 bg-amber-500">
-                  <Wand2 className="w-3 h-3 mr-1" />
-                  وضع الوكيل الذكي مفعّل
-                </Badge>
-              )}
-              
-              {/* Agent Actions */}
-              {agentMode ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2 max-w-lg">
-                  {agentActions.map((action) => (
-                    <Button
-                      key={action.label}
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setInput(action.prompt)}
-                      className="text-xs bg-white dark:bg-gray-800 justify-start"
-                    >
-                      {action.label}
-                    </Button>
-                  ))}
-                </div>
-              ) : (
-                /* Quick suggestions */
-                <div className="flex flex-wrap gap-2 mt-2 justify-center">
-                  {quickActions.map((action) => (
-                    <Button
-                      key={action.label}
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setInput(action.prompt)}
-                      className="text-sm bg-white dark:bg-gray-800"
-                    >
-                      <action.icon className="w-4 h-4 ml-1" />
-                      {action.label}
-                    </Button>
-                  ))}
-                </div>
-              )}
+              {/* Agent capabilities or Quick actions */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 mt-1 max-w-lg">
+                {(agentMode ? agentCapabilities : quickActions).map((action, i) => (
+                  <Button
+                    key={i}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setInput(action.prompt)}
+                    className="text-xs bg-white dark:bg-gray-800 h-auto py-2 flex flex-col items-center gap-0.5"
+                  >
+                    {'icon' in action && <action.icon className="w-4 h-4" />}
+                    <span>{action.label}</span>
+                    {'description' in action && (
+                      <span className="text-[10px] text-gray-400">{action.description}</span>
+                    )}
+                  </Button>
+                ))}
+              </div>
 
-              {/* Keyboard hint */}
-              <p className="text-xs text-gray-400 mt-6">
-                💡 اضغط Enter لسطر جديد، Ctrl+Enter للإرسال
+              <p className="text-xs text-gray-400 mt-4">
+                Enter = سطر جديد • Ctrl+Enter = إرسال
               </p>
             </div>
           ) : (
-            <div className="space-y-4 pb-4">
+            <div className="space-y-3 pb-3">
               <AnimatePresence>
                 {messages.map((message) => (
                   <motion.div
                     key={message.id}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className={`flex gap-3 ${message.role === 'user' ? 'flex-row-reverse' : ''}`}
+                    className={`flex gap-2 ${message.role === 'user' ? 'flex-row-reverse' : ''}`}
                   >
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
                       message.role === 'user' 
                         ? 'bg-blue-500' 
                         : 'bg-gradient-to-r from-purple-500 to-blue-500'
                     }`}>
                       {message.role === 'user' ? (
-                        <User className="w-4 h-4 text-white" />
+                        <User className="w-3.5 h-3.5 text-white" />
                       ) : (
-                        <Bot className="w-4 h-4 text-white" />
+                        <Bot className="w-3.5 h-3.5 text-white" />
                       )}
                     </div>
-                    <div className="flex-1">
-                      <div className={`rounded-2xl px-4 py-2 max-w-[90%] ${
+                    <div className="flex-1 max-w-[85%]">
+                      <div className={`rounded-2xl px-3 py-2 ${
                         message.role === 'user'
-                          ? 'bg-blue-500 text-white mr-auto ml-0'
-                          : 'bg-white dark:bg-gray-800 shadow-md'
+                          ? 'bg-blue-500 text-white ml-auto'
+                          : 'bg-white dark:bg-gray-800 shadow-md border dark:border-gray-700'
                       }`}>
-                        <p className="whitespace-pre-wrap text-sm">{message.content}</p>
+                        {message.role === 'assistant' 
+                          ? formatAIResponse(message.content)
+                          : <p className="whitespace-pre-wrap text-sm">{message.content}</p>
+                        }
                       </div>
                       
-                      {/* Web Sources */}
+                      {/* Copy button for AI messages */}
+                      {message.role === 'assistant' && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => copyToClipboard(message.content, message.id)}
+                          className="mt-1 h-6 text-xs text-gray-400"
+                        >
+                          {copiedId === message.id ? (
+                            <>
+                              <Check className="w-3 h-3 mr-1" />
+                              تم النسخ
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3 h-3 mr-1" />
+                              نسخ
+                            </>
+                          )}
+                        </Button>
+                      )}
+                      
+                      {/* Sources */}
                       {message.sources && message.sources.length > 0 && (
-                        <div className="mt-2 space-y-2">
+                        <div className="mt-2 space-y-1">
                           <p className="text-xs text-gray-500 flex items-center gap-1">
                             <Globe className="w-3 h-3" />
-                            مصادر من الإنترنت:
+                            مصادر:
                           </p>
-                          <div className="flex flex-wrap gap-2">
+                          <div className="flex flex-wrap gap-1">
                             {message.sources.map((source, i) => (
                               <a
                                 key={i}
                                 href={source.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2 py-1 rounded-full hover:underline"
+                                className="inline-flex items-center gap-1 text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full hover:underline"
                               >
                                 <ExternalLink className="w-3 h-3" />
                                 {source.name || new URL(source.url).hostname}
@@ -401,17 +674,17 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="flex gap-3"
+                  className="flex gap-2"
                 >
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-500 to-blue-500 flex items-center justify-center">
-                    <Bot className="w-4 h-4 text-white" />
+                  <div className="w-7 h-7 rounded-full bg-gradient-to-r from-purple-500 to-blue-500 flex items-center justify-center">
+                    <Bot className="w-3.5 h-3.5 text-white" />
                   </div>
-                  <div className="bg-white dark:bg-gray-800 rounded-2xl px-4 py-3 shadow-md">
+                  <div className="bg-white dark:bg-gray-800 rounded-2xl px-3 py-2 shadow-md border dark:border-gray-700">
                     <div className="flex items-center gap-2">
                       {searching ? (
                         <>
                           <Globe className="w-4 h-4 animate-pulse text-blue-500" />
-                          <span className="text-sm text-gray-500">جاري البحث في الإنترنت...</span>
+                          <span className="text-sm text-gray-500">جاري البحث...</span>
                         </>
                       ) : (
                         <>
@@ -424,36 +697,95 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
                 </motion.div>
               )}
               
-              {/* Scroll anchor */}
               <div ref={messagesEndRef} />
             </div>
           )}
         </ScrollArea>
       </div>
 
-      {/* Error Display */}
+      {/* Error */}
       {error && (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mx-4 mb-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-center gap-2"
+          className="mx-3 mb-2 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-center gap-2"
         >
-          <AlertCircle className="w-5 h-5 text-red-500" />
-          <p className="text-sm text-red-600 dark:text-red-400 flex-1">{error}</p>
+          <AlertCircle className="w-4 h-4 text-red-500" />
+          <p className="text-xs text-red-600 dark:text-red-400 flex-1">{error}</p>
           <Button
             variant="ghost"
             size="sm"
             onClick={retryLastMessage}
-            className="text-red-600 hover:bg-red-100 dark:hover:bg-red-900/50"
+            className="text-red-600 text-xs p-1"
           >
-            <RefreshCw className="w-4 h-4 ml-1" />
+            <RefreshCw className="w-3 h-3 ml-1" />
             إعادة
           </Button>
         </motion.div>
       )}
 
-      {/* Input Area - Fixed at bottom */}
-      <div className="flex-shrink-0 p-4 border-t bg-white dark:bg-gray-800">
+      {/* Upload indicators */}
+      {(uploadedFile || uploadedImage) && (
+        <div className="mx-3 mb-2 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg flex items-center gap-2">
+          {uploadedImage ? (
+            <img src={uploadedImage} alt="صورة مرفوعة" className="w-10 h-10 rounded object-cover" />
+          ) : (
+            <FileUp className="w-4 h-4 text-blue-500" />
+          )}
+          <span className="text-xs text-blue-600 flex-1">
+            {uploadedFile?.name || 'صورة مرفوعة'}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => { setUploadedFile(null); setUploadedImage(null) }}
+            className="p-1"
+          >
+            <X className="w-3 h-3" />
+          </Button>
+        </div>
+      )}
+
+      {/* Input */}
+      <div className="flex-shrink-0 p-3 border-t bg-white dark:bg-gray-800">
+        {/* Upload buttons */}
+        <div className="flex gap-1 mb-2">
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            accept=".txt,.md,.csv,.pdf,.doc,.docx,.xlsx"
+            className="hidden"
+          />
+          <input
+            type="file"
+            ref={imageInputRef}
+            onChange={handleImageUpload}
+            accept="image/*"
+            className="hidden"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => fileInputRef.current?.click()}
+            className="text-xs gap-1"
+          >
+            <FileUp className="w-3 h-3" />
+            <span className="hidden sm:inline">ملف</span>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => imageInputRef.current?.click()}
+            className="text-xs gap-1"
+          >
+            <Image className="w-3 h-3" />
+            <span className="hidden sm:inline">صورة</span>
+          </Button>
+        </div>
+        
         <form
           onSubmit={(e) => { e.preventDefault(); sendMessage() }}
           className="flex gap-2"
@@ -462,8 +794,11 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
             ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={webSearchEnabled ? "اكتب سؤالك مع البحث في الإنترنت..." : "اكتب رسالتك هنا... (Ctrl+Enter للإرسال)"}
-            className="resize-none min-h-[44px] max-h-32"
+            placeholder={agentMode 
+              ? "وضع الوكيل: أمرني بما تريد إنشاءه..." 
+              : "اكتب رسالتك هنا..."
+            }
+            className="resize-none min-h-[40px] max-h-28 text-sm"
             onKeyDown={handleKeyDown}
             disabled={loading}
           />
@@ -471,16 +806,17 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
             type="submit"
             disabled={!input.trim() || loading}
             className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 px-4"
+            size="icon"
           >
             {loading ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
+              <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
-              <Send className="w-5 h-5" />
+              <Send className="w-4 h-4" />
             )}
           </Button>
         </form>
-        <p className="text-xs text-gray-400 mt-2 text-center">
-          Enter = سطر جديد • Ctrl+Enter = إرسال
+        <p className="text-[10px] text-gray-400 mt-1.5 text-center">
+          Enter = سطر جديد • Ctrl+Enter = إرسال • {agentMode && 'وكيل ذكي مفعّل'}
         </p>
       </div>
     </div>

@@ -169,11 +169,15 @@ function getSpecialization(section: string | null): string {
 async function callAI(
   systemPrompt: string,
   userMessage: string,
-  options: { temperature?: number; maxTokens?: number } = {}
+  options: { temperature?: number; maxTokens?: number; stream?: boolean } = {}
 ): Promise<string> {
-  const { temperature = 0.7, maxTokens = 2000 } = options
+  const { temperature = 0.7, maxTokens = 1500 } = options
 
   try {
+    // Use AbortController for timeout (30 seconds for faster response)
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 30000)
+
     const response = await fetch(`${AI_CONFIG.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -187,9 +191,13 @@ async function callAI(
           { role: 'user', content: userMessage }
         ],
         temperature,
-        max_tokens: maxTokens
-      })
+        max_tokens: maxTokens,
+        stream: false
+      }),
+      signal: controller.signal
     })
+
+    clearTimeout(timeoutId)
 
     if (!response.ok) {
       const errorText = await response.text()

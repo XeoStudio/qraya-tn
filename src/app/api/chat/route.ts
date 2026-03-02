@@ -27,11 +27,13 @@ export async function POST(request: NextRequest) {
     const {
       message,
       history = [],
-      enableWebSearch = false
+      enableWebSearch = false,
+      agentMode = false
     } = body as {
       message: string
       history?: ChatMessage[]
       enableWebSearch?: boolean
+      agentMode?: boolean
     }
 
     if (!message || message.trim().length === 0) {
@@ -62,11 +64,24 @@ export async function POST(request: NextRequest) {
       } : null
     }
 
-    // Get AI response with user context
-    const response = await chat(message.trim(), userProfile, {
+    // Agent mode enhances the response
+    const agentPrompt = agentMode ? `
+[وضع الوكيل الذكي مفعّل]
+قدم رداً شاملاً ومفصلاً يتضمن:
+- شرح عميق ومفصل
+- أمثلة عملية متعددة
+- خطوات واضحة إن أمكن
+- نصائح وتوصيات
+- ملخص في النهاية
+` : ''
+
+    const enhancedMessage = agentMode ? agentPrompt + '\n\n' + message : message
+
+    // Get AI response with user context (fast timeout)
+    const response = await chat(enhancedMessage.trim(), userProfile, {
       history,
       enableWebSearch: enableWebSearch || user.subscription?.advancedAI || false,
-      thinking: user.subscription?.advancedAI || false
+      thinking: false // Disable thinking for faster responses
     })
 
     if (!response.success) {
@@ -76,18 +91,14 @@ export async function POST(request: NextRequest) {
       }, { status: 500 })
     }
 
-    // Update user points and last active
-    try {
-      await db.user.update({
-        where: { id: user.id },
-        data: {
-          points: { increment: 1 },
-          lastActive: new Date()
-        }
-      })
-    } catch {
-      // Ignore update errors
-    }
+    // Update user points and last active (async, don't wait)
+    db.user.update({
+      where: { id: user.id },
+      data: {
+        points: { increment: 1 },
+        lastActive: new Date()
+      }
+    }).catch(() => {})
 
     return NextResponse.json({
       success: true,
