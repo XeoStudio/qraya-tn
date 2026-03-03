@@ -1,0 +1,427 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== ENUMS ====================
+
+enum Role {
+  USER
+  PREMIUM
+  ADMIN
+}
+
+enum PlanType {
+  FREE
+  BASIC
+  PREMIUM
+  BAC_PRO
+}
+
+enum UserStatus {
+  ACTIVE
+  BANNED
+  INACTIVE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_USER
+  RESOLVED
+  CLOSED
+}
+
+enum TicketCategory {
+  GENERAL
+  TECHNICAL
+  BILLING
+  SUGGESTION
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+// ==================== MODELS ====================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  password      String
+  avatar        String?
+  
+  // الملف الدراسي
+  level         String?   // primary, preparatory, secondary, bac
+  levelName     String?
+  year          String?
+  section       String?
+  subjects      String?
+  
+  // الولاية التونسية
+  governorate   String?
+  
+  // الدور والحالة
+  role          Role      @default(USER)
+  status        UserStatus @default(ACTIVE)
+  isVerified    Boolean   @default(false)
+  
+  // الاشتراك
+  subscription  Subscription?
+  usedPromoCodes PromoCodeUsage[]
+  
+  // Gamification
+  points        Int       @default(0)
+  streak        Int       @default(0)
+  lastActive    DateTime?
+  achievements  Achievement[]
+  studyStats    StudyStat[]
+  
+  // النشاط
+  sessions      Session[]
+  activities    ActivityLog[]
+  chats         Chat[]
+  reports       ErrorReport[]
+  
+  // نظام الإحالة
+  referralCode  String?   @unique
+  referredBy    String?
+  referrals     Referral[] @relation("UserReferrals")
+  referralEarnings Referral[] @relation("ReferrerEarnings")
+  
+  // التذاكر
+  tickets       SupportTicket[]
+  ticketMessages TicketMessage[]
+  
+  // بطاقات المراجعة
+  flashcardDecks FlashcardDeck[]
+  
+  // خطط الدراسة
+  studyPlans    StudyPlan[]
+  
+  // حقول الإدارة
+  bannedAt      DateTime?
+  bannedReason  String?
+  notes         String?
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Subscription {
+  id            String        @id @default(cuid())
+  userId        String        @unique
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  plan          PlanType      @default(FREE)
+  status        SubscriptionStatus @default(ACTIVE)
+  
+  startDate     DateTime      @default(now())
+  endDate       DateTime?
+  
+  // صلاحيات الوصول
+  agentMode     Boolean       @default(false)
+  advancedAI    Boolean       @default(false)
+  unlimitedChat Boolean       @default(false)
+  priority      Boolean       @default(false)
+  exportPDF     Boolean       @default(false)
+  ocrUnlimited  Boolean       @default(false)
+  customPlans   Boolean       @default(false)
+  
+  // حدود الاستخدام
+  chatsUsed     Int           @default(0)
+  ocrUsed       Int           @default(0)
+  quotaLimit    Int           @default(50)
+  
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+model PromoCode {
+  id            String    @id @default(cuid())
+  code          String    @unique
+  planType      PlanType
+  
+  duration      Int?      // أيام، null = مدة الخطة الافتراضية
+  maxUses       Int?
+  usedCount     Int       @default(0)
+  
+  // المميزات
+  agentMode     Boolean   @default(false)
+  advancedAI    Boolean   @default(false)
+  unlimitedChat Boolean   @default(false)
+  priority      Boolean   @default(false)
+  exportPDF     Boolean   @default(false)
+  ocrUnlimited  Boolean   @default(false)
+  customPlans   Boolean   @default(false)
+  
+  isActive      Boolean   @default(true)
+  createdBy     String?
+  expiresAt     DateTime?
+  
+  usages        PromoCodeUsage[]
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model PromoCodeUsage {
+  id          String    @id @default(cuid())
+  codeId      String
+  promoCode   PromoCode @relation(fields: [codeId], references: [id])
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  usedAt      DateTime  @default(now())
+}
+
+model Session {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token       String    @unique
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+}
+
+model Chat {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String?
+  messages    ChatMessage[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model ChatMessage {
+  id          String    @id @default(cuid())
+  chatId      String
+  chat        Chat      @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  role        String    // user, assistant
+  content     String
+  sources     String?   // JSON string for web sources
+  createdAt   DateTime  @default(now())
+}
+
+model ActivityLog {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action      String
+  details     String?
+  createdAt   DateTime  @default(now())
+}
+
+model Achievement {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        String
+  title       String
+  description String?
+  earnedAt    DateTime  @default(now())
+}
+
+model StudyStat {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date        DateTime  @default(now())
+  chatsCount  Int       @default(0)
+  questionsAnswered Int @default(0)
+  studyTime   Int       @default(0) // بالدقائق
+  pointsEarned Int      @default(0)
+}
+
+model ErrorReport {
+  id          String    @id @default(cuid())
+  userId      String?
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  type        String
+  message     String
+  details     String?
+  status      String    @default("pending") // pending, resolved, ignored
+  createdAt   DateTime  @default(now())
+  resolvedAt  DateTime?
+}
+
+// ==================== نظام التذاكر ====================
+
+model SupportTicket {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  title       String
+  category    TicketCategory @default(GENERAL)
+  status      TicketStatus   @default(OPEN)
+  priority    TicketPriority @default(MEDIUM)
+  
+  messages    TicketMessage[]
+  
+  // التقييم بعد الإغلاق
+  rating      Int?
+  feedback    String?
+  
+  // طلب تدخل يدوي
+  needsHumanIntervention Boolean @default(false)
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  closedAt    DateTime?
+}
+
+model TicketMessage {
+  id          String    @id @default(cuid())
+  ticketId    String
+  ticket      SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  userId      String?
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  content     String
+  isFromAI    Boolean   @default(false)
+  isFromAdmin Boolean   @default(false)
+  
+  createdAt   DateTime  @default(now())
+}
+
+// ==================== نظام الإحالة ====================
+
+model Referral {
+  id          String    @id @default(cuid())
+  referrerId  String
+  referrer    User      @relation("ReferrerEarnings", fields: [referrerId], references: [id])
+  
+  referredUserId String
+  referredUser   User    @relation("UserReferrals", fields: [referredUserId], references: [id])
+  
+  // المكافأة
+  rewardPoints Int      @default(50)
+  isClaimed   Boolean   @default(false)
+  claimedAt   DateTime?
+  
+  createdAt   DateTime  @default(now())
+}
+
+// ==================== بطاقات المراجعة ====================
+
+model FlashcardDeck {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  title       String
+  subject     String?
+  description String?
+  
+  cards       Flashcard[]
+  
+  // التقدم
+  totalCards  Int       @default(0)
+  masteredCards Int     @default(0)
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Flashcard {
+  id          String    @id @default(cuid())
+  deckId      String
+  deck        FlashcardDeck @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  
+  front       String    // السؤال أو المصطلح
+  back        String    // الإجابة أو الشرح
+  
+  // التقدم الشخصي
+  difficulty  Int       @default(0) // 0-5، للتكرار المتباعد
+  timesReviewed Int     @default(0)
+  nextReview  DateTime?
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// ==================== خطط الدراسة ====================
+
+model StudyPlan {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  title       String
+  subject     String?
+  description String?
+  
+  startDate   DateTime
+  endDate     DateTime
+  
+  tasks       StudyTask[]
+  
+  // التقدم
+  totalTasks  Int       @default(0)
+  completedTasks Int    @default(0)
+  
+  isActive    Boolean   @default(true)
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model StudyTask {
+  id          String    @id @default(cuid())
+  planId      String
+  plan        StudyPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  
+  title       String
+  description String?
+  
+  dueDate     DateTime?
+  isCompleted Boolean   @default(false)
+  completedAt DateTime?
+  
+  order       Int       @default(0)
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// ==================== سجلات النظام ====================
+
+model SystemLog {
+  id          String    @id @default(cuid())
+  level       String    // info, warning, error
+  category    String    // auth, subscription, chat, system
+  message     String
+  details     String?   // JSON
+  
+  userId      String?
+  
+  createdAt   DateTime  @default(now())
+}
+
+model Post {
+  id        String   @id @default(cuid())
+  title     String
+  content   String?
+  published Boolean  @default(false)
+  authorId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
