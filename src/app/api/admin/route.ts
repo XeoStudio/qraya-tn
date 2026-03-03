@@ -168,8 +168,8 @@ async function getAdvancedStats() {
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
   const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000)
   
-  // User growth by day (last 30 days)
-  const usersByDay = await db.$queryRaw`
+  // User growth by day (last 30 days) - PostgreSQL
+  const usersByDay = await db.$queryRaw<[{ date: Date; count: bigint }]>`
     SELECT DATE("createdAt") as date, COUNT(*) as count
     FROM "User"
     WHERE "createdAt" >= ${thirtyDaysAgo}
@@ -177,8 +177,8 @@ async function getAdvancedStats() {
     ORDER BY date DESC
   `
   
-  // Chat activity by day
-  const chatsByDay = await db.$queryRaw`
+  // Chat activity by day - PostgreSQL
+  const chatsByDay = await db.$queryRaw<[{ date: Date; count: bigint }]>`
     SELECT DATE("createdAt") as date, COUNT(*) as count
     FROM "Chat"
     WHERE "createdAt" >= ${thirtyDaysAgo}
@@ -281,11 +281,11 @@ async function getUsers(searchParams: URLSearchParams) {
   
   const where: Record<string, unknown> = {}
   
-  // Use case-insensitive search for PostgreSQL
+  // Case-insensitive search (works with SQLite)
   if (search) {
     where.OR = [
-      { email: { contains: search, mode: 'insensitive' } },
-      { name: { contains: search, mode: 'insensitive' } }
+      { email: { contains: search } },
+      { name: { contains: search } }
     ]
   }
   

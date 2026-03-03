@@ -4,23 +4,26 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
-// Database URL with pgbouncer settings for Supabase
+// Database URL configuration for Supabase/PostgreSQL
 const getDatabaseUrl = () => {
   const baseUrl = process.env.DATABASE_URL
   if (!baseUrl) {
     throw new Error('DATABASE_URL is not set')
   }
 
-  // Add pgbouncer parameter if not already present
-  if (baseUrl.includes('pgbouncer=true')) {
-    return baseUrl
+  // For Vercel/Supabase production - add pgbouncer for connection pooling
+  if (baseUrl.includes('supabase') || baseUrl.includes('postgresql')) {
+    if (baseUrl.includes('pgbouncer=true')) {
+      return baseUrl
+    }
+    const separator = baseUrl.includes('?') ? '&' : '?'
+    return `${baseUrl}${separator}pgbouncer=true&connect_timeout=15`
   }
 
-  const separator = baseUrl.includes('?') ? '&' : '?'
-  return `${baseUrl}${separator}pgbouncer=true&connect_timeout=15`
+  return baseUrl
 }
 
-// Configure Prisma for Supabase Connection Pooler
+// Configure Prisma for PostgreSQL (Supabase in production)
 export const db =
   globalForPrisma.prisma ??
   new PrismaClient({

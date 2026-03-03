@@ -22,7 +22,7 @@ import {
   RefreshCw,
   GraduationCap,
   Wand2,
-  Image,
+  Image as ImageIcon,
   FileUp,
   X,
   BarChart3,
@@ -438,7 +438,7 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
                       {message.role === 'user' ? <User className="w-3.5 h-3.5 text-white" /> : <Bot className="w-3.5 h-3.5 text-white" />}
                     </div>
                     <div className="flex-1 max-w-[85%]">
-                      {message.imageData?.url && <img src={message.imageData.url} alt="صورة مرفوعة" className="max-w-[200px] rounded-lg mb-2 border" />}
+                      {message.imageData?.url && <img src={message.imageData.url} alt="صورة مرفوعة من المستخدم" className="max-w-[200px] rounded-lg mb-2 border" />}
                       {message.fileName && <div className="text-xs text-gray-500 mb-1">📄 {message.fileName}</div>}
                       <div className={`rounded-2xl px-3 py-2 ${message.role === 'user' ? 'bg-blue-500 text-white ml-auto' : 'bg-white dark:bg-gray-800 shadow-md border dark:border-gray-700'}`}>
                         {message.role === 'assistant' ? formatAIResponse(message.content) : <p className="whitespace-pre-wrap text-sm">{message.content}</p>}
@@ -519,7 +519,7 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
             <span className="hidden sm:inline">ملف</span>
           </Button>
           <Button type="button" variant="outline" size="sm" onClick={() => imageInputRef.current?.click()} disabled={isUploading} className="text-xs gap-1">
-            <Image className="w-3 h-3" />
+            <ImageIcon className="w-3 h-3" />
             <span className="hidden sm:inline">صورة</span>
           </Button>
         </div>
