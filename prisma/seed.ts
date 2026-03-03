@@ -21,7 +21,7 @@ async function main() {
       isVerified: true,
       subscription: {
         create: {
-          plan: 'LIFETIME',
+          plan: 'BAC_PRO',
           status: 'ACTIVE',
           agentMode: true,
           advancedAI: true,
@@ -43,7 +43,7 @@ async function main() {
   const promoCodes = [
     { code: 'WELCOME2025', planType: 'BASIC' as const, duration: 30, maxUses: 100 },
     { code: 'PREMIUM50', planType: 'PREMIUM' as const, duration: 30, maxUses: 50 },
-    { code: 'LIFETIME10', planType: 'LIFETIME' as const, maxUses: 10 },
+    { code: 'BACPRO10', planType: 'BAC_PRO' as const, maxUses: 10 },
   ]
 
   for (const promo of promoCodes) {
@@ -57,8 +57,8 @@ async function main() {
         unlimitedChat: promo.planType !== 'BASIC',
         priority: promo.planType !== 'BASIC',
         exportPDF: promo.planType !== 'BASIC',
-        ocrUnlimited: promo.planType === 'LIFETIME',
-        customPlans: promo.planType === 'LIFETIME',
+        ocrUnlimited: promo.planType === 'BAC_PRO',
+        customPlans: promo.planType === 'BAC_PRO',
         createdBy: admin.id
       }
     })
@@ -74,7 +74,7 @@ async function main() {
   console.log('🎫 Demo promo codes:')
   console.log('   WELCOME2025 - BASIC plan (30 days)')
   console.log('   PREMIUM50 - PREMIUM plan (30 days)')
-  console.log('   LIFETIME10 - LIFETIME plan')
+  console.log('   BACPRO10 - BAC_PRO plan')
 }
 
 main()

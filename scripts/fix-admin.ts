@@ -27,7 +27,7 @@ async function main() {
         points: 9999,
         subscription: {
           create: {
-            plan: 'LIFETIME',
+            plan: 'BAC_PRO',
             status: 'ACTIVE',
             agentMode: true,
             advancedAI: true,
@@ -62,7 +62,7 @@ async function main() {
       await db.subscription.update({
         where: { id: user.subscription.id },
         data: {
-          plan: 'LIFETIME',
+          plan: 'BAC_PRO',
           status: 'ACTIVE',
           agentMode: true,
           advancedAI: true,
@@ -78,7 +78,7 @@ async function main() {
       await db.subscription.create({
         data: {
           userId: user.id,
-          plan: 'LIFETIME',
+          plan: 'BAC_PRO',
           status: 'ACTIVE',
           agentMode: true,
           advancedAI: true,
