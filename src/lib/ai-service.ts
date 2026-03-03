@@ -1,7 +1,6 @@
 /**
  * Real AI Service - Connected to ktai API
- * Full Tunisian educational context with real AI responses
- * Supports session memory for context-aware conversations
+ * Optimized for Vercel deployment with proper timeout handling
  */
 
 // API Configuration
@@ -61,79 +60,30 @@ function buildTunisianContext(user: UserProfile): string {
 
   return `أنت "مساعد دراسة تونسي" - معلم ذكي متخصص في المناهج التونسية.
 
-## هويتك:
-أنت معلم تونسي خبير، ودود ومحترف. تتحدث العربية الفصحى بطلاقة وتستخدم الفرنسية للمصطلحات العلمية.
+## الطالب:
+- الاسم: ${user.name || 'طالب'}
+- المستوى: ${user.levelName || 'غير محدد'}${user.year ? ` - ${user.year}` : ''}
+- الشعبة: ${user.section || 'غير محددة'} ${specialization ? `(${specialization})` : ''}
+- الولاية: ${govInfo?.name || user.governorate || 'غير محددة'}
+${user.subjects ? `- المواد المفضلة: ${user.subjects}` : ''}
 
-## الطالب الحالي:
-- **الاسم:** ${user.name || 'طالب'}
-- **المستوى الدراسي:** ${user.levelName || 'غير محدد'}${user.year ? ` - ${user.year}` : ''}
-- **الشعبة:** ${user.section || 'غير محددة'} ${specialization ? `(${specialization})` : ''}
-- **الولاية:** ${govInfo?.name || user.governorate || 'غير محددة'}${govInfo ? ` - ${govInfo.region}` : ''}
-${user.subjects ? `- **المواد المفضلة:** ${user.subjects}` : ''}
-- **نقاطه:** ${user.points} نقطة | **التسلسل:** ${user.streak} يوم
-
-${levelInfo ? `## المواد المتاحة للمستوى ${user.levelName || 'الحالي'}:
-${levelInfo.subjects.map(s => `• ${s}`).join('\n')}
+${levelInfo ? `## المواد المتاحة:
+${levelInfo.subjects.join('، ')}
 ` : ''}
 
-## قواعد التدريس:
-
-### 1. التخصيص:
-- اشرح بطريقة مناسبة لمستوى الطالب
-- استخدم أمثلة من الحياة اليومية التونسية
-- اربط المفاهيم بالامتحانات الوطنية
-- ركز على المواد المتعلقة بشعبة الطالب
-
-### 2. أسلوب الشرح:
-- ابدأ بالتعريف المبسط ثم التفاصيل
-- استخدم الترقيم (1. 2. 3...)
-- أضف أمثلة تطبيقية من المنهج التونسي
-- اختم بملخص أو نقاط مهمة
-
-### 3. اللغة:
-- العربية الفصحى للشرح
-- الفرنسية للمصطلحات العلمية والرياضيات
-- التبسيط عند الحاجة
-
-### 4. التفاعل:
-- شجع الطالب على طرح الأسئلة
-- قدم نصائح للمراجعة
-
-## المناهج التونسية:
-- التزم بالكتب المدرسية التونسية
-- استخدم المصطلحات المعتمدة
-- ارتبط بامتحانات البكالوريا والشهادة
-
-${user.subscription?.plan && user.subscription.plan !== 'FREE' ? `
-## مزايا الاشتراك (${user.subscription.plan}):
-${user.subscription.agentMode ? '• شرح مفصل وعميق' : ''}
-${user.subscription.advancedAI ? '• تحليل أعمق وإجابات أشمل' : ''}
-` : ''}
-
-## مهم:
-- أجب بشكل مباشر ومنظم
-- استخدم التنسيق والترقيم
-- كن مختصراً عند الحاجة ومفصلاً عند الضرورة`
+## قواعد الإجابة:
+1. أجب بالعربية الفصحى بشكل مباشر ومنظم
+2. استخدم الترقيم والنقاط
+3. قدم أمثلة من المنهج التونسي
+4. كن مختصراً ومفيداً`
 }
 
 function getLevelInfo(level: string | null) {
   const levels: Record<string, { name: string; subjects: string[] }> = {
-    primary: {
-      name: 'التعليم الابتدائي',
-      subjects: ['اللغة العربية', 'الرياضيات', 'العلوم', 'التربية الإسلامية', 'اللغة الفرنسية']
-    },
-    preparatory: {
-      name: 'التعليم الإعدادي',
-      subjects: ['اللغة العربية', 'الرياضيات', 'العلوم الفيزيائية', 'علوم الحياة والأرض', 'التاريخ', 'الجغرافيا', 'اللغة الفرنسية', 'اللغة الإنجليزية']
-    },
-    secondary: {
-      name: 'التعليم الثانوي',
-      subjects: ['اللغة العربية', 'الرياضيات', 'الفيزياء', 'الكيمياء', 'علوم الحياة والأرض', 'التاريخ', 'الجغرافيا', 'اللغة الفرنسية', 'اللغة الإنجليزية', 'الفلسفة', 'الاقتصاد']
-    },
-    bac: {
-      name: 'مرحلة البكالوريا',
-      subjects: ['الرياضيات', 'الفيزياء', 'الكيمياء', 'علوم الحياة والأرض', 'اللغة العربية', 'اللغة الفرنسية', 'اللغة الإنجليزية', 'التاريخ', 'الجغرافيا', 'الفلسفة', 'الاقتصاد', 'الإعلامية']
-    }
+    primary: { name: 'التعليم الابتدائي', subjects: ['اللغة العربية', 'الرياضيات', 'العلوم', 'التربية الإسلامية', 'اللغة الفرنسية'] },
+    preparatory: { name: 'التعليم الإعدادي', subjects: ['اللغة العربية', 'الرياضيات', 'العلوم الفيزيائية', 'علوم الحياة والأرض', 'التاريخ', 'الجغرافيا', 'اللغة الفرنسية', 'اللغة الإنجليزية'] },
+    secondary: { name: 'التعليم الثانوي', subjects: ['اللغة العربية', 'الرياضيات', 'الفيزياء', 'الكيمياء', 'علوم الحياة والأرض', 'التاريخ', 'الجغرافيا', 'اللغة الفرنسية', 'اللغة الإنجليزية', 'الفلسفة', 'الاقتصاد'] },
+    bac: { name: 'مرحلة البكالوريا', subjects: ['الرياضيات', 'الفيزياء', 'الكيمياء', 'علوم الحياة والأرض', 'اللغة العربية', 'اللغة الفرنسية', 'اللغة الإنجليزية', 'التاريخ', 'الجغرافيا', 'الفلسفة', 'الاقتصاد', 'الإعلامية'] }
   }
   return level ? levels[level] || null : null
 }
@@ -170,53 +120,41 @@ function getSpecialization(section: string | null): string {
   return ''
 }
 
-// ==================== AI API CALL ====================
+// ==================== AI API CALL - NO TIMEOUT (let Vercel handle it) ====================
 
 async function callAI(
   systemPrompt: string,
   userMessage: string,
-  options: { temperature?: number; maxTokens?: number; timeout?: number } = {}
+  options: { temperature?: number; maxTokens?: number } = {}
 ): Promise<string> {
-  const { temperature = 0.7, maxTokens = 2000, timeout = 55000 } = options
+  const { temperature = 0.7, maxTokens = 2000 } = options
 
-  try {
-    // Use AbortController for timeout
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), timeout)
-
-    const response = await fetch(`${AI_CONFIG.baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${AI_CONFIG.apiKey}`
-      },
-      body: JSON.stringify({
-        model: AI_CONFIG.model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userMessage }
-        ],
-        temperature,
-        max_tokens: maxTokens,
-        stream: false
-      }),
-      signal: controller.signal
+  const response = await fetch(`${AI_CONFIG.baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${AI_CONFIG.apiKey}`
+    },
+    body: JSON.stringify({
+      model: AI_CONFIG.model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessage }
+      ],
+      temperature,
+      max_tokens: maxTokens,
+      stream: false
     })
+  })
 
-    clearTimeout(timeoutId)
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error('AI API error:', response.status, errorText)
-      throw new Error(`AI API error: ${response.status}`)
-    }
-
-    const data = await response.json()
-    return data.choices?.[0]?.message?.content || ''
-  } catch (error) {
-    console.error('AI call failed:', error)
-    throw error
+  if (!response.ok) {
+    const errorText = await response.text()
+    console.error('AI API error:', response.status, errorText)
+    throw new Error(`AI API error: ${response.status}`)
   }
+
+  const data = await response.json()
+  return data.choices?.[0]?.message?.content || ''
 }
 
 // ==================== EXPORTED FUNCTIONS ====================
@@ -235,23 +173,22 @@ export async function chat(
 
     let fullMessage = message
 
-    // Add conversation history for session memory (up to 10 messages for better context)
+    // Add conversation history (last 6 messages for faster processing)
     if (options.history && options.history.length > 0) {
-      const recentHistory = options.history.slice(-10)
+      const recentHistory = options.history.slice(-6)
       const historyContext = recentHistory
         .filter(m => m.role !== 'system')
         .map(m => `${m.role === 'user' ? 'الطالب' : 'المعلم'}: ${m.content}`)
-        .join('\n\n')
+        .join('\n')
 
       if (historyContext) {
-        fullMessage = `[محادثة سابقة - تذكر سياق المحادثة]\n${historyContext}\n\n[السؤال الحالي]\n${message}\n\n[تعليمات: أجب على السؤال الحالي مع مراعاة سياق المحادثة السابقة. لا تكرر ما قلته سابقاً إلا إذا كان ضرورياً للشرح.]`
+        fullMessage = `[محادثة سابقة]\n${historyContext}\n\n[السؤال]: ${message}`
       }
     }
 
     const response = await callAI(systemPrompt, fullMessage, {
       temperature: options.thinking ? 0.5 : 0.7,
-      maxTokens: options.thinking ? 3000 : 2000,
-      timeout: 55000
+      maxTokens: options.thinking ? 3000 : 2000
     })
 
     return {
@@ -260,20 +197,80 @@ export async function chat(
     }
   } catch (error: unknown) {
     console.error('Chat error:', error)
-    
-    // Check if it's a timeout error
-    if (error instanceof Error && error.name === 'AbortError') {
-      return {
-        success: false,
-        content: '',
-        error: 'انتهت مهلة الطلب. يرجى المحاولة مرة أخرى أو تقصير رسالتك.'
-      }
-    }
-    
     return {
       success: false,
       content: '',
       error: error instanceof Error ? error.message : 'حدث خطأ في الاتصال بالذكاء الاصطناعي'
+    }
+  }
+}
+
+// Chat with content (file content analysis)
+export async function chatWithContent(
+  content: string,
+  fileName: string,
+  userMessage: string,
+  user: UserProfile,
+  options: {
+    history?: ChatMessage[]
+  } = {}
+): Promise<AIResponse> {
+  try {
+    const systemPrompt = buildTunisianContext(user) + `\n\nيمكنك تحليل المحتوى المرفق والرد على الأسئلة المتعلقة به.`
+
+    const messages: { role: string; content: string }[] = [
+      { role: 'system', content: systemPrompt }
+    ]
+
+    // Add conversation history
+    if (options.history && options.history.length > 0) {
+      const recentHistory = options.history.slice(-4)
+      for (const msg of recentHistory) {
+        if (msg.role !== 'system') {
+          messages.push({
+            role: msg.role,
+            content: msg.content
+          })
+        }
+      }
+    }
+
+    // Add file content and question
+    messages.push({
+      role: 'user',
+      content: `[ملف مرفق: ${fileName}]\n\nالمحتوى:\n${content}\n\nالسؤال: ${userMessage || 'حلل هذا المحتوى'}`
+    })
+
+    const response = await fetch(`${AI_CONFIG.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${AI_CONFIG.apiKey}`
+      },
+      body: JSON.stringify({
+        model: AI_CONFIG.model,
+        messages,
+        temperature: 0.7,
+        max_tokens: 2000
+      })
+    })
+
+    if (!response.ok) {
+      throw new Error(`AI API error: ${response.status}`)
+    }
+
+    const data = await response.json()
+    
+    return {
+      success: true,
+      content: data.choices?.[0]?.message?.content || ''
+    }
+  } catch (error: unknown) {
+    console.error('Chat with content error:', error)
+    return {
+      success: false,
+      content: '',
+      error: 'حدث خطأ في تحليل المحتوى'
     }
   }
 }
@@ -290,14 +287,13 @@ export async function chatWithImage(
   try {
     const systemPrompt = buildTunisianContext(user) + `\n\nيمكنك تحليل الصور والرد على الأسئلة المتعلقة بها.`
 
-    // Build messages array with history
     const messages: { role: string; content: string | unknown[] }[] = [
       { role: 'system', content: systemPrompt }
     ]
 
-    // Add conversation history
+    // Add conversation history (last 4 messages)
     if (options.history && options.history.length > 0) {
-      const recentHistory = options.history.slice(-8)
+      const recentHistory = options.history.slice(-4)
       for (const msg of recentHistory) {
         if (msg.role !== 'system') {
           messages.push({
@@ -317,9 +313,6 @@ export async function chatWithImage(
       ]
     })
 
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 60000)
-
     const response = await fetch(`${AI_CONFIG.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -331,11 +324,8 @@ export async function chatWithImage(
         messages,
         temperature: 0.7,
         max_tokens: 2000
-      }),
-      signal: controller.signal
+      })
     })
-
-    clearTimeout(timeoutId)
 
     if (!response.ok) {
       throw new Error(`AI API error: ${response.status}`)
@@ -349,15 +339,6 @@ export async function chatWithImage(
     }
   } catch (error: unknown) {
     console.error('Chat with image error:', error)
-    
-    if (error instanceof Error && error.name === 'AbortError') {
-      return {
-        success: false,
-        content: '',
-        error: 'انتهت مهلة الطلب. يرجى المحاولة مرة أخرى.'
-      }
-    }
-    
     return {
       success: false,
       content: '',
@@ -383,7 +364,6 @@ export async function generateQuiz(
 - كل سؤال له 4 خيارات فقط
 - إجابة واحدة صحيحة
 - أضف شرح للإجابة الصحيحة
-- مناسب للمنهج التونسي
 
 أعد الرد بتنسيق JSON فقط:
 {
@@ -398,9 +378,8 @@ export async function generateQuiz(
 }`
 
   try {
-    const response = await callAI(systemPrompt, userPrompt, { temperature: 0.5, maxTokens: 3000, timeout: 45000 })
+    const response = await callAI(systemPrompt, userPrompt, { temperature: 0.5, maxTokens: 3000 })
 
-    // Extract JSON from response
     const jsonMatch = response.match(/\{[\s\S]*\}/)
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0])
@@ -423,24 +402,16 @@ export async function generateStudyPlan(
 ): Promise<{ success: boolean; plan?: string; error?: string }> {
   const systemPrompt = buildTunisianContext(user)
 
-  const userPrompt = `أنشئ خطة دراسة مفصلة:
+  const userPrompt = `أنشئ خطة دراسة:
+المواد: ${subjects.join('، ')}
+المدة: ${days} يوم
+ساعات يومية: ${hoursPerDay} ساعة
+${goal ? `الهدف: ${goal}` : ''}
 
-**المواد:** ${subjects.join('، ')}
-**المدة:** ${days} يوم
-**ساعات الدراسة اليومية:** ${hoursPerDay} ساعة
-${goal ? `**الهدف:** ${goal}` : ''}
-
-المتطلبات:
-1. جدول أسبوعي مفصل
-2. توزيع المواد بالتساوي
-3. أوقات استراحة
-4. تركيز على المواد الصعبة
-5. وقت للمراجعة
-6. نصائح دراسية
-7. استخدم الأيام التونسية (السبت، الأحد، الإثنين...)`
+قدم جدولاً أسبوعياً مع توزيع المواد وأوقات الاستراحة.`
 
   try {
-    const plan = await callAI(systemPrompt, userPrompt, { temperature: 0.7, maxTokens: 3000, timeout: 45000 })
+    const plan = await callAI(systemPrompt, userPrompt, { temperature: 0.7, maxTokens: 2000 })
     return { success: true, plan }
   } catch (error) {
     console.error('Study plan error:', error)
@@ -455,18 +426,12 @@ export async function generateSummary(
   const systemPrompt = buildTunisianContext(user)
 
   const userPrompt = `لخص المحتوى التالي:
-
 ${content}
 
-المتطلبات:
-1. استخرج النقاط الرئيسية
-2. لغة بسيطة وواضحة
-3. نظم في نقاط مرقمة
-4. أضف أمثلة عند الحاجة
-5. اختم بجملة ملخصة`
+استخرج النقاط الرئيسية بلغة بسيطة.`
 
   try {
-    const summary = await callAI(systemPrompt, userPrompt, { temperature: 0.6, maxTokens: 2000, timeout: 45000 })
+    const summary = await callAI(systemPrompt, userPrompt, { temperature: 0.6, maxTokens: 1500 })
     return { success: true, summary }
   } catch (error) {
     console.error('Summary error:', error)
@@ -483,12 +448,6 @@ export async function generateFlashcards(
 
   const userPrompt = `أنشئ ${count} بطاقات مراجعة حول: "${topic}"
 
-المتطلبات:
-- أسئلة مختصرة وواضحة
-- إجابات موجزة (1-3 جمل)
-- مناسبة للمراجعة السريعة
-- تغطي المفاهيم الأساسية
-
 أعد الرد بتنسيق JSON:
 {
   "flashcards": [
@@ -497,7 +456,7 @@ export async function generateFlashcards(
 }`
 
   try {
-    const response = await callAI(systemPrompt, userPrompt, { temperature: 0.6, maxTokens: 2000, timeout: 45000 })
+    const response = await callAI(systemPrompt, userPrompt, { temperature: 0.6, maxTokens: 2000 })
 
     const jsonMatch = response.match(/\{[\s\S]*\}/)
     if (jsonMatch) {
@@ -518,24 +477,18 @@ export async function webSearch(
   numResults: number = 5
 ): Promise<{ success: boolean; results?: SearchResult[]; error?: string }> {
   try {
-    // Use AI to generate contextual search results
-    const systemPrompt = `أنت محرك بحث تعليمي تونسي. ابحث عن معلومات حول الموضوع المطلوب وقدم نتائج مفيدة للطالب التونسي.`
+    const systemPrompt = `أنت محرك بحث تعليمي تونسي.`
 
     const userPrompt = `ابحث عن: "${query}"
 
 قدم ${numResults} نتائج بحث بتنسيق JSON:
 {
   "results": [
-    {
-      "url": "رابط المصدر",
-      "name": "عنوان النتيجة",
-      "snippet": "مقتطف من المحتوى",
-      "source": "اسم المصدر"
-    }
+    { "url": "رابط", "name": "عنوان", "snippet": "مقتطف", "source": "مصدر" }
   ]
 }`
 
-    const response = await callAI(systemPrompt, userPrompt, { temperature: 0.3, maxTokens: 1500, timeout: 30000 })
+    const response = await callAI(systemPrompt, userPrompt, { temperature: 0.3, maxTokens: 1000 })
 
     const jsonMatch = response.match(/\{[\s\S]*\}/)
     if (jsonMatch) {
@@ -557,34 +510,21 @@ export async function generateSupportResponse(
   user: UserProfile
 ): Promise<string> {
   const systemPrompt = `أنت مساعد دعم فني لموقع "مساعد دراسة تونسي".
+للتواصل: واتساب +216 24 239 724`
 
-قواعد الرد:
-1. كن ودوداً ومحترفاً
-2. أجب بالعربية الفصحى
-3. قدم حلولاً عملية
-4. للتواصل: واتساب +216 24 239 724
-
-خطط الأسعار:
-- مجاني: 10 محادثات، 3 OCR يومياً
-- أساسي (9.99 DT/شهر): 50 محادثة، 20 OCR
-- متقدم (19.99 DT/شهر): غير محدود
-- باك برو (29.99 DT/شهر): للمتقدمين للباكالوريا`
-
-  const userPrompt = `تذكرة دعم:
-العنوان: ${ticketTitle}
+  const userPrompt = `تذكرة: ${ticketTitle}
 التصنيف: ${category}
 الرسالة: ${ticketMessage}
-
 قدم رداً مناسباً.`
 
   try {
-    return await callAI(systemPrompt, userPrompt, { temperature: 0.7, maxTokens: 500, timeout: 30000 })
+    return await callAI(systemPrompt, userPrompt, { temperature: 0.7, maxTokens: 500 })
   } catch {
     return 'شكراً لتواصلك معنا. سيتم الرد عليك قريباً.'
   }
 }
 
-// Export data for other uses
+// Export data
 export const TUNISIAN_DATA = {
   levels: {
     primary: { name: 'التعليم الابتدائي', subjects: ['اللغة العربية', 'الرياضيات', 'العلوم', 'التربية الإسلامية', 'اللغة الفرنسية'] },

@@ -194,5 +194,5 @@ export const ERROR_MESSAGES = {
   UNKNOWN: 'حدث خطأ غير متوقع'
 }
 
-// مهلة الانتظار (60 ثانية - أكثر مرونة)
-export const AI_TIMEOUT = 60000
+// مهلة الانتظار - لا timeout (let Vercel handle it)
+export const AI_TIMEOUT = 120000
