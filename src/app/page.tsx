@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense, lazy, Component, ReactNode } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { AuthProvider, useAuth } from '@/lib/auth-context'
 import HeroSection from '@/components/HeroSection'
@@ -8,11 +8,12 @@ import QuickActions from '@/components/QuickActions'
 import PricingSection from '@/components/PricingSection'
 import AuthModal from '@/components/AuthModal'
 import UserDashboard from '@/components/UserDashboard'
+import AdminPage from '@/components/AdminPage'
 import ChatInterface from '@/components/ChatInterface'
 import ToolsPanel from '@/components/ToolsPanel'
 import WhatsAppButton from '@/components/WhatsAppButton'
+import ErrorBoundary from '@/components/ErrorBoundary'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
 import { 
   BookOpen, 
   Menu, 
@@ -21,46 +22,8 @@ import {
   Settings, 
   Crown,
   MessageCircle,
-  Sparkles,
-  AlertTriangle,
-  RefreshCw
+  Sparkles
 } from 'lucide-react'
-
-// Lazy load AdminPage to avoid client-side issues
-const AdminPage = lazy(() => import('@/components/AdminPage'))
-
-// Error Boundary Component
-class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error?: Error }> {
-  constructor(props: { children: ReactNode }) {
-    super(props)
-    this.state = { hasError: false }
-  }
-
-  static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error }
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="min-h-screen flex items-center justify-center p-4" dir="rtl">
-          <Card className="max-w-md w-full p-8 text-center">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-100 flex items-center justify-center">
-              <AlertTriangle className="w-8 h-8 text-red-500" />
-            </div>
-            <h2 className="text-xl font-bold text-gray-900 mb-2">حدث خطأ</h2>
-            <p className="text-gray-600 mb-4">{this.state.error?.message || 'خطأ غير متوقع'}</p>
-            <Button onClick={() => window.location.reload()} className="gap-2">
-              <RefreshCw className="w-4 h-4" />
-              تحديث الصفحة
-            </Button>
-          </Card>
-        </div>
-      )
-    }
-    return this.props.children
-  }
-}
 
 type View = 'home' | 'chat' | 'tools' | 'dashboard' | 'admin'
 
@@ -70,13 +33,6 @@ function MainContent() {
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-
-  // Redirect admin to admin panel on load
-  useEffect(() => {
-    if (isAdmin && currentView === 'home') {
-      // Admin can see both views
-    }
-  }, [isAdmin, currentView])
 
   const handleGetStarted = () => {
     if (isAuthenticated) {
@@ -88,9 +44,7 @@ function MainContent() {
   }
 
   const handleShowPricing = () => {
-    // First switch to home view
     setCurrentView('home')
-    // Then scroll to pricing section after a short delay
     setTimeout(() => {
       const pricingSection = document.getElementById('pricing')
       if (pricingSection) {
@@ -355,11 +309,6 @@ function MainContent() {
                             الدعم الفني
                           </a>
                         </li>
-                        <li>
-                          <a href="/about" className="hover:text-white transition-colors">
-                            من نحن
-                          </a>
-                        </li>
                       </ul>
                     </div>
                     
@@ -375,11 +324,6 @@ function MainContent() {
                         <li>
                           <a href="/terms" className="hover:text-white transition-colors">
                             شروط الاستخدام
-                          </a>
-                        </li>
-                        <li>
-                          <a href="/contact" className="hover:text-white transition-colors">
-                            تواصل معنا
                           </a>
                         </li>
                       </ul>
@@ -436,7 +380,9 @@ function MainContent() {
               exit={{ opacity: 0 }}
               className="container mx-auto px-4 py-8"
             >
-              <ChatInterface />
+              <ErrorBoundary>
+                <ChatInterface />
+              </ErrorBoundary>
             </motion.div>
           )}
 
@@ -449,7 +395,9 @@ function MainContent() {
               className="container mx-auto px-4 py-8"
             >
               <h1 className="text-2xl font-bold mb-6 text-center">أدوات الدراسة</h1>
-              <ToolsPanel />
+              <ErrorBoundary>
+                <ToolsPanel />
+              </ErrorBoundary>
             </motion.div>
           )}
 
@@ -461,7 +409,9 @@ function MainContent() {
               exit={{ opacity: 0 }}
               className="container mx-auto px-4 py-8"
             >
-              <UserDashboard onShowPricing={handleShowPricing} />
+              <ErrorBoundary>
+                <UserDashboard onShowPricing={handleShowPricing} />
+              </ErrorBoundary>
             </motion.div>
           )}
 
@@ -474,13 +424,7 @@ function MainContent() {
               className="container mx-auto px-4 py-8"
             >
               <ErrorBoundary>
-                <Suspense fallback={
-                  <div className="flex justify-center py-12">
-                    <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                  </div>
-                }>
-                  <AdminPage />
-                </Suspense>
+                <AdminPage />
               </ErrorBoundary>
             </motion.div>
           )}
@@ -503,7 +447,9 @@ function MainContent() {
 export default function Home() {
   return (
     <AuthProvider>
-      <MainContent />
+      <ErrorBoundary>
+        <MainContent />
+      </ErrorBoundary>
     </AuthProvider>
   )
 }

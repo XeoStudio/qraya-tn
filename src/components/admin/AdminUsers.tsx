@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,15 +11,9 @@ import {
   Ban, 
   CheckCircle, 
   Crown,
-  MoreVertical,
-  Eye,
   Loader2,
-  ChevronLeft,
-  ChevronRight,
-  Star,
   Users
 } from 'lucide-react'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
@@ -45,6 +39,7 @@ interface AdminUsersProps {
 export default function AdminUsers({ showMessage }: AdminUsersProps) {
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
@@ -59,8 +54,9 @@ export default function AdminUsers({ showMessage }: AdminUsersProps) {
   const [upgradeDuration, setUpgradeDuration] = useState('30')
   const [actionLoading, setActionLoading] = useState(false)
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     setLoading(true)
+    setError(null)
     try {
       const params = new URLSearchParams({
         page: page.toString(),
@@ -69,6 +65,11 @@ export default function AdminUsers({ showMessage }: AdminUsersProps) {
       })
       
       const res = await fetch(`/api/admin?action=users&${params}`, { credentials: 'include' })
+      
+      if (!res.ok) {
+        throw new Error('فشل في تحميل البيانات')
+      }
+      
       const data = await res.json()
       
       if (data.success && Array.isArray(data.users)) {
@@ -79,15 +80,16 @@ export default function AdminUsers({ showMessage }: AdminUsersProps) {
       }
     } catch (err) {
       console.error('Fetch error:', err)
+      setError('حدث خطأ في تحميل البيانات')
       setUsers([])
     } finally {
       setLoading(false)
     }
-  }
+  }, [page, search])
 
   useEffect(() => {
     fetchUsers()
-  }, [page])
+  }, [fetchUsers])
 
   const handleSearch = () => {
     setPage(1)
@@ -192,11 +194,6 @@ export default function AdminUsers({ showMessage }: AdminUsersProps) {
     return labels[status] || status
   }
 
-  const getRoleLabel = (role: string) => {
-    const labels: Record<string, string> = { USER: 'مستخدم', PREMIUM: 'مميز', ADMIN: 'مدير' }
-    return labels[role] || role
-  }
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -226,6 +223,16 @@ export default function AdminUsers({ showMessage }: AdminUsersProps) {
         </div>
       </Card>
 
+      {/* Error State */}
+      {error && (
+        <Card className="p-4 bg-red-50 dark:bg-red-900/20 border-red-200">
+          <p className="text-red-600 text-center">{error}</p>
+          <Button onClick={fetchUsers} variant="outline" size="sm" className="mt-2 w-full">
+            إعادة المحاولة
+          </Button>
+        </Card>
+      )}
+
       {/* Users List */}
       <Card className="p-3">
         {loading ? (
@@ -251,7 +258,7 @@ export default function AdminUsers({ showMessage }: AdminUsersProps) {
                     </div>
                     <p className="text-sm text-gray-500 truncate">{user.email}</p>
                     <div className="flex items-center gap-3 text-xs text-gray-400 mt-1">
-                      <span className="flex items-center gap-1"><Star className="w-3 h-3" />{user.points} نقطة</span>
+                      <span>{user.points} نقطة</span>
                       <span>•</span>
                       <span>{getPlanLabel(user.plan)}</span>
                       <span>•</span>
@@ -288,17 +295,6 @@ export default function AdminUsers({ showMessage }: AdminUsersProps) {
                       )}
                     </>
                   )}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm"><MoreVertical className="w-4 h-4" /></Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => showMessage('info', `${user.email} - ${getRoleLabel(user.role)}`)}>
-                        <Eye className="w-4 h-4 ml-2" />
-                        عرض التفاصيل
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
                 </div>
               </div>
             ))}
@@ -309,11 +305,11 @@ export default function AdminUsers({ showMessage }: AdminUsersProps) {
         {totalPages > 1 && (
           <div className="flex items-center justify-center gap-2 mt-4">
             <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
-              <ChevronRight className="w-4 h-4" />
+              السابق
             </Button>
             <span className="text-sm text-gray-500">{page} / {totalPages}</span>
             <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
-              <ChevronLeft className="w-4 h-4" />
+              التالي
             </Button>
           </div>
         )}

@@ -22,7 +22,7 @@ import {
   RefreshCw,
   GraduationCap,
   Wand2,
-  Image,
+  Image as ImageIcon,
   FileUp,
   X,
   BarChart3,
@@ -423,7 +423,7 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
                   <Button key={i} variant="outline" size="sm" onClick={() => setInput(action.prompt)} className="text-xs bg-white dark:bg-gray-800 h-auto py-2 flex flex-col items-center gap-0.5">
                     {'icon' in action && <action.icon className="w-4 h-4" />}
                     <span>{action.label}</span>
-                    {'description' in action && <span className="text-[10px] text-gray-400">{action.description}</span>}
+                    {'description' in action && action.description ? <span className="text-[10px] text-gray-400">{action.description as string}</span> : null}
                   </Button>
                 ))}
               </div>
@@ -519,7 +519,7 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
             <span className="hidden sm:inline">ملف</span>
           </Button>
           <Button type="button" variant="outline" size="sm" onClick={() => imageInputRef.current?.click()} disabled={isUploading} className="text-xs gap-1">
-            <Image className="w-3 h-3" />
+            <ImageIcon className="w-3 h-3" />
             <span className="hidden sm:inline">صورة</span>
           </Button>
         </div>

@@ -20,13 +20,47 @@ import {
   Activity,
   Sparkles
 } from 'lucide-react'
-import AdminStats from './admin/AdminStats'
-import AdminUsers from './admin/AdminUsers'
-import AdminPromoCodes from './admin/AdminPromoCodes'
-import AdminLogs from './admin/AdminLogs'
-import AdminTickets from './admin/AdminTickets'
-import AdminSubscriptions from './admin/AdminSubscriptions'
-import AdminAdvancedStats from './admin/AdminAdvancedStats'
+import dynamic from 'next/dynamic'
+
+// Lazy load heavy components
+const AdminStats = dynamic(() => import('./admin/AdminStats'), { 
+  loading: () => <LoadingSpinner />,
+  ssr: false 
+})
+const AdminUsers = dynamic(() => import('./admin/AdminUsers'), { 
+  loading: () => <LoadingSpinner />,
+  ssr: false 
+})
+const AdminPromoCodes = dynamic(() => import('./admin/AdminPromoCodes'), { 
+  loading: () => <LoadingSpinner />,
+  ssr: false 
+})
+const AdminLogs = dynamic(() => import('./admin/AdminLogs'), { 
+  loading: () => <LoadingSpinner />,
+  ssr: false 
+})
+const AdminTickets = dynamic(() => import('./admin/AdminTickets'), { 
+  loading: () => <LoadingSpinner />,
+  ssr: false 
+})
+const AdminSubscriptions = dynamic(() => import('./admin/AdminSubscriptions'), { 
+  loading: () => <LoadingSpinner />,
+  ssr: false 
+})
+const AdminAdvancedStats = dynamic(() => import('./admin/AdminAdvancedStats'), { 
+  loading: () => <LoadingSpinner />,
+  ssr: false 
+})
+
+function LoadingSpinner() {
+  return (
+    <Card className="p-8">
+      <div className="flex justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+      </div>
+    </Card>
+  )
+}
 
 interface AdminStatsData {
   totalUsers: number
@@ -104,23 +138,35 @@ export default function AdminPage() {
   ]
 
   const renderContent = () => {
-    switch (activeTab) {
-      case 'stats':
-        return <AdminStats stats={stats} loading={loading} onRefresh={fetchStats} />
-      case 'advanced-stats':
-        return <AdminAdvancedStats />
-      case 'users':
-        return <AdminUsers showMessage={showMessage} />
-      case 'subscriptions':
-        return <AdminSubscriptions showMessage={showMessage} />
-      case 'tickets':
-        return <AdminTickets showMessage={showMessage} />
-      case 'promocodes':
-        return <AdminPromoCodes showMessage={showMessage} />
-      case 'logs':
-        return <AdminLogs />
-      default:
-        return <AdminStats stats={stats} loading={loading} onRefresh={fetchStats} />
+    try {
+      switch (activeTab) {
+        case 'stats':
+          return <AdminStats stats={stats} loading={loading} onRefresh={fetchStats} />
+        case 'advanced-stats':
+          return <AdminAdvancedStats />
+        case 'users':
+          return <AdminUsers showMessage={showMessage} />
+        case 'subscriptions':
+          return <AdminSubscriptions showMessage={showMessage} />
+        case 'tickets':
+          return <AdminTickets showMessage={showMessage} />
+        case 'promocodes':
+          return <AdminPromoCodes showMessage={showMessage} />
+        case 'logs':
+          return <AdminLogs />
+        default:
+          return <AdminStats stats={stats} loading={loading} onRefresh={fetchStats} />
+      }
+    } catch (error) {
+      console.error('Error rendering content:', error)
+      return (
+        <Card className="p-8 text-center">
+          <p className="text-red-500">حدث خطأ في تحميل المحتوى</p>
+          <Button onClick={() => setActiveTab('stats')} variant="outline" className="mt-4">
+            العودة للرئيسية
+          </Button>
+        </Card>
+      )
     }
   }
 
