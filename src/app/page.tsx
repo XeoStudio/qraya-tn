@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { AuthProvider, useAuth } from '@/lib/auth-context'
+import { useAuth } from '@/lib/auth-context'
 import HeroSection from '@/components/HeroSection'
 import QuickActions from '@/components/QuickActions'
 import PricingSection from '@/components/PricingSection'
@@ -381,9 +381,5 @@ function MainContent() {
 }
 
 export default function Home() {
-  return (
-    <AuthProvider>
-      <MainContent />
-    </AuthProvider>
-  )
+  return <MainContent />
 }

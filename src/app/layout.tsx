@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Noto_Sans_Arabic } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
+import { Providers } from "./providers";
 
 const notoSansArabic = Noto_Sans_Arabic({
   variable: "--font-arabic",
@@ -35,7 +36,9 @@ export default function RootLayout({
         className={`${notoSansArabic.variable} font-sans antialiased bg-background text-foreground`}
         style={{ fontFamily: 'var(--font-arabic), sans-serif' }}
       >
-        {children}
+        <Providers>
+          {children}
+        </Providers>
         <Toaster />
       </body>
     </html>
