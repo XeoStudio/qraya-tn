@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -16,10 +15,6 @@ import {
   Crown,
   Clock,
   AlertTriangle,
-  CheckCircle,
-  XCircle,
-  Calendar,
-  TrendingUp,
   Edit
 } from 'lucide-react'
 
@@ -27,33 +22,44 @@ interface Subscription {
   id: string
   userId: string
   user: {
-    id: string
     name: string | null
     email: string
-    level?: string | null
-    levelName?: string | null
   }
   plan: string
   status: string
-  startDate: string
   endDate: string | null
-  features: {
-    agentMode: boolean
-    advancedAI: boolean
-    unlimitedChat: boolean
-    priority: boolean
-    exportPDF: boolean
-    ocrUnlimited: boolean
-    customPlans: boolean
-  }
   chatsUsed: number
   ocrUsed: number
-  quotaLimit: number
-  createdAt: string
 }
 
 interface AdminSubscriptionsProps {
   showMessage: (type: 'success' | 'error', message: string) => void
+}
+
+const planLabels: Record<string, string> = {
+  FREE: 'مجاني',
+  BASIC: 'أساسي',
+  PREMIUM: 'متقدم',
+  BAC_PRO: 'باك برو'
+}
+
+const planColors: Record<string, string> = {
+  FREE: 'bg-gray-500',
+  BASIC: 'bg-blue-500',
+  PREMIUM: 'bg-purple-500',
+  BAC_PRO: 'bg-amber-500'
+}
+
+const statusLabels: Record<string, string> = {
+  ACTIVE: 'نشط',
+  EXPIRED: 'منتهي',
+  CANCELLED: 'ملغي'
+}
+
+const statusColors: Record<string, string> = {
+  ACTIVE: 'bg-green-500',
+  EXPIRED: 'bg-red-500',
+  CANCELLED: 'bg-gray-500'
 }
 
 export default function AdminSubscriptions({ showMessage }: AdminSubscriptionsProps) {
@@ -62,39 +68,39 @@ export default function AdminSubscriptions({ showMessage }: AdminSubscriptionsPr
   const [statusFilter, setStatusFilter] = useState('')
   const [planFilter, setPlanFilter] = useState('')
   
-  // Dialogs
+  // Dialog
   const [selectedSub, setSelectedSub] = useState<Subscription | null>(null)
   const [showEditDialog, setShowEditDialog] = useState(false)
-  const [actionLoading, setActionLoading] = useState(false)
-  
-  // Edit form
   const [editPlan, setEditPlan] = useState('')
-  const [editEndDate, setEditEndDate] = useState('')
   const [extendDays, setExtendDays] = useState('')
-
-  useEffect(() => {
-    fetchSubscriptions()
-  }, [statusFilter, planFilter])
+  const [actionLoading, setActionLoading] = useState(false)
 
   const fetchSubscriptions = async () => {
     setLoading(true)
     try {
-      const params = new URLSearchParams({
-        ...(statusFilter && { status: statusFilter }),
-        ...(planFilter && { plan: planFilter })
-      })
+      const params = new URLSearchParams()
+      if (statusFilter) params.append('status', statusFilter)
+      if (planFilter) params.append('plan', planFilter)
       
       const res = await fetch(`/api/admin?action=subscriptions&${params}`, { credentials: 'include' })
       const data = await res.json()
-      if (data.success) {
+      
+      if (data.success && Array.isArray(data.subscriptions)) {
         setSubscriptions(data.subscriptions)
+      } else {
+        setSubscriptions([])
       }
-    } catch (error) {
-      console.error('Error fetching subscriptions:', error)
+    } catch (err) {
+      console.error('Fetch error:', err)
+      setSubscriptions([])
     } finally {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    fetchSubscriptions()
+  }, [statusFilter, planFilter])
 
   const updateSubscription = async () => {
     if (!selectedSub) return
@@ -115,13 +121,13 @@ export default function AdminSubscriptions({ showMessage }: AdminSubscriptionsPr
       const data = await res.json()
       
       if (data.success) {
-        showMessage('success', 'تم تحديث الاشتراك بنجاح')
+        showMessage('success', 'تم تحديث الاشتراك')
         setShowEditDialog(false)
         fetchSubscriptions()
       } else {
-        showMessage('error', data.error || 'فشل في تحديث الاشتراك')
+        showMessage('error', data.error || 'فشل التحديث')
       }
-    } catch (error) {
+    } catch {
       showMessage('error', 'حدث خطأ')
     } finally {
       setActionLoading(false)
@@ -146,13 +152,13 @@ export default function AdminSubscriptions({ showMessage }: AdminSubscriptionsPr
       const data = await res.json()
       
       if (data.success) {
-        showMessage('success', `تم تمديد الاشتراك ${extendDays} يوم`)
+        showMessage('success', `تم التمديد ${extendDays} يوم`)
         setExtendDays('')
         fetchSubscriptions()
       } else {
-        showMessage('error', data.error || 'فشل في تمديد الاشتراك')
+        showMessage('error', data.error || 'فشل التمديد')
       }
-    } catch (error) {
+    } catch {
       showMessage('error', 'حدث خطأ')
     } finally {
       setActionLoading(false)
@@ -161,7 +167,7 @@ export default function AdminSubscriptions({ showMessage }: AdminSubscriptionsPr
 
   const cancelSubscription = async () => {
     if (!selectedSub) return
-    if (!confirm('هل أنت متأكد من إلغاء هذا الاشتراك؟')) return
+    if (!confirm('هل أنت متأكد من إلغاء الاشتراك؟')) return
     
     setActionLoading(true)
     try {
@@ -172,7 +178,7 @@ export default function AdminSubscriptions({ showMessage }: AdminSubscriptionsPr
         body: JSON.stringify({
           action: 'cancel-subscription',
           userId: selectedSub.userId,
-          reason: 'إلغاء من قبل الإدارة'
+          reason: 'إلغاء من الإدارة'
         })
       })
       const data = await res.json()
@@ -182,39 +188,13 @@ export default function AdminSubscriptions({ showMessage }: AdminSubscriptionsPr
         setShowEditDialog(false)
         fetchSubscriptions()
       } else {
-        showMessage('error', data.error || 'فشل في إلغاء الاشتراك')
+        showMessage('error', data.error || 'فشل الإلغاء')
       }
-    } catch (error) {
+    } catch {
       showMessage('error', 'حدث خطأ')
     } finally {
       setActionLoading(false)
     }
-  }
-
-  const planLabels: Record<string, string> = {
-    FREE: 'مجاني',
-    BASIC: 'أساسي',
-    PREMIUM: 'متقدم',
-    BAC_PRO: 'باك برو'
-  }
-
-  const planColors: Record<string, string> = {
-    FREE: 'bg-gray-500',
-    BASIC: 'bg-blue-500',
-    PREMIUM: 'bg-purple-500',
-    BAC_PRO: 'bg-amber-500'
-  }
-
-  const statusLabels: Record<string, string> = {
-    ACTIVE: 'نشط',
-    EXPIRED: 'منتهي',
-    CANCELLED: 'ملغي'
-  }
-
-  const statusColors: Record<string, string> = {
-    ACTIVE: 'bg-green-500',
-    EXPIRED: 'bg-red-500',
-    CANCELLED: 'bg-gray-500'
   }
 
   const isExpiringSoon = (endDate: string | null) => {
@@ -223,10 +203,10 @@ export default function AdminSubscriptions({ showMessage }: AdminSubscriptionsPr
     return days > 0 && days <= 7
   }
 
-  const isExpired = (endDate: string | null) => {
-    if (!endDate) return false
-    return new Date(endDate) < new Date()
-  }
+  const getPlanLabel = (plan: string) => planLabels[plan] || plan
+  const getPlanColor = (plan: string) => planColors[plan] || 'bg-gray-500'
+  const getStatusLabel = (status: string) => statusLabels[status] || status
+  const getStatusColor = (status: string) => statusColors[status] || 'bg-gray-500'
 
   return (
     <div className="space-y-4">
@@ -235,37 +215,29 @@ export default function AdminSubscriptions({ showMessage }: AdminSubscriptionsPr
           <CreditCard className="w-5 h-5 text-amber-500" />
           إدارة الاشتراكات
         </h3>
-        <Button onClick={fetchSubscriptions} variant="outline" size="sm" className="gap-2">
-          <RefreshCw className="w-4 h-4" />
+        <Button onClick={fetchSubscriptions} variant="outline" size="sm" className="gap-2" disabled={loading}>
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           تحديث
         </Button>
       </div>
 
-      {/* Stats Cards */}
+      {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Card className="p-3">
-          <p className="text-2xl font-bold text-green-500">
-            {subscriptions.filter(s => s.status === 'ACTIVE').length}
-          </p>
+          <p className="text-2xl font-bold text-green-500">{subscriptions.filter(s => s.status === 'ACTIVE').length}</p>
           <p className="text-xs text-gray-500">نشطة</p>
         </Card>
         <Card className="p-3">
-          <p className="text-2xl font-bold text-red-500">
-            {subscriptions.filter(s => isExpiringSoon(s.endDate)).length}
-          </p>
+          <p className="text-2xl font-bold text-orange-500">{subscriptions.filter(s => isExpiringSoon(s.endDate)).length}</p>
           <p className="text-xs text-gray-500">تنتهي قريباً</p>
         </Card>
         <Card className="p-3">
-          <p className="text-2xl font-bold text-gray-500">
-            {subscriptions.filter(s => isExpired(s.endDate)).length}
-          </p>
+          <p className="text-2xl font-bold text-red-500">{subscriptions.filter(s => s.status === 'EXPIRED').length}</p>
           <p className="text-xs text-gray-500">منتهية</p>
         </Card>
         <Card className="p-3">
-          <p className="text-2xl font-bold text-purple-500">
-            {subscriptions.filter(s => s.plan === 'PREMIUM' || s.plan === 'BAC_PRO').length}
-          </p>
-          <p className="text-xs text-gray-500">متقدم/باك برو</p>
+          <p className="text-2xl font-bold text-purple-500">{subscriptions.filter(s => s.plan === 'PREMIUM' || s.plan === 'BAC_PRO').length}</p>
+          <p className="text-xs text-gray-500">مميز</p>
         </Card>
       </div>
 
@@ -298,103 +270,74 @@ export default function AdminSubscriptions({ showMessage }: AdminSubscriptionsPr
         </div>
       </Card>
 
-      {/* Subscriptions List */}
+      {/* List */}
       <Card className="p-3">
         {loading ? (
           <div className="flex justify-center py-8">
             <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
           </div>
         ) : subscriptions.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            لا توجد اشتراكات
-          </div>
+          <div className="text-center py-8 text-gray-500">لا توجد اشتراكات</div>
         ) : (
-          <ScrollArea className="h-[400px]">
-            <div className="space-y-2">
-              {subscriptions.map((sub) => (
-                <div
-                  key={sub.id}
-                  className={`flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 rounded-xl border gap-2 ${
-                    isExpiringSoon(sub.endDate) ? 'border-orange-300 bg-orange-50 dark:bg-orange-900/10' : ''
-                  }`}
-                >
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className={`w-10 h-10 rounded-full ${planColors[sub.plan]} flex items-center justify-center text-white flex-shrink-0`}>
-                      <Crown className="w-5 h-5" />
+          <div className="space-y-2 max-h-[400px] overflow-y-auto">
+            {subscriptions.map((sub) => (
+              <div
+                key={sub.id}
+                className={`flex items-center justify-between p-3 rounded-xl border gap-2 ${isExpiringSoon(sub.endDate) ? 'border-orange-300 bg-orange-50 dark:bg-orange-900/10' : ''}`}
+              >
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className={`w-10 h-10 rounded-full ${getPlanColor(sub.plan)} flex items-center justify-center text-white flex-shrink-0`}>
+                    <Crown className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-medium truncate">{sub.user?.name || sub.user?.email || 'مستخدم'}</p>
+                      <Badge className={`${getPlanColor(sub.plan)} text-white text-xs`}>{getPlanLabel(sub.plan)}</Badge>
+                      <Badge className={`${getStatusColor(sub.status)} text-white text-xs`}>{getStatusLabel(sub.status)}</Badge>
+                      {isExpiringSoon(sub.endDate) && (
+                        <Badge variant="destructive" className="text-xs"><AlertTriangle className="w-3 h-3 ml-1" />قريب</Badge>
+                      )}
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-medium truncate">{sub.user.name || sub.user.email}</p>
-                        <Badge className={`${planColors[sub.plan]} text-white`}>
-                          {planLabels[sub.plan]}
-                        </Badge>
-                        <Badge className={`${statusColors[sub.status]} text-white`}>
-                          {statusLabels[sub.status]}
-                        </Badge>
-                        {isExpiringSoon(sub.endDate) && (
-                          <Badge variant="destructive">
-                            <AlertTriangle className="w-3 h-3 ml-1" />
-                            ينتهي قريباً
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {sub.endDate ? new Date(sub.endDate).toLocaleDateString('ar') : 'غير محدد'}
-                        </span>
-                        <span>المحادثات: {sub.chatsUsed}</span>
-                        <span>OCR: {sub.ocrUsed}</span>
-                      </div>
+                    <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
+                      <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{sub.endDate ? new Date(sub.endDate).toLocaleDateString('ar') : 'غير محدد'}</span>
+                      <span>محادثات: {sub.chatsUsed || 0}</span>
                     </div>
                   </div>
-                  
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setSelectedSub(sub)
-                      setEditPlan(sub.plan)
-                      setEditEndDate(sub.endDate ? sub.endDate.split('T')[0] : '')
-                      setShowEditDialog(true)
-                    }}
-                  >
-                    <Edit className="w-4 h-4 ml-1" />
-                    تعديل
-                  </Button>
                 </div>
-              ))}
-            </div>
-          </ScrollArea>
+                <Button variant="outline" size="sm" onClick={() => {
+                  setSelectedSub(sub)
+                  setEditPlan(sub.plan)
+                  setShowEditDialog(true)
+                }}>
+                  <Edit className="w-4 h-4 ml-1" />
+                  تعديل
+                </Button>
+              </div>
+            ))}
+          </div>
         )}
       </Card>
 
       {/* Edit Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>تعديل الاشتراك</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>تعديل الاشتراك</DialogTitle></DialogHeader>
           {selectedSub && (
             <div className="space-y-4">
               <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
-                <div className={`w-10 h-10 rounded-full ${planColors[selectedSub.plan]} flex items-center justify-center text-white`}>
+                <div className={`w-10 h-10 rounded-full ${getPlanColor(selectedSub.plan)} flex items-center justify-center text-white`}>
                   <Crown className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="font-medium">{selectedSub.user.name || selectedSub.user.email}</p>
-                  <p className="text-sm text-gray-500">
-                    {planLabels[selectedSub.plan]} - {statusLabels[selectedSub.status]}
-                  </p>
+                  <p className="font-medium">{selectedSub.user?.name || selectedSub.user?.email || 'مستخدم'}</p>
+                  <p className="text-sm text-gray-500">{getPlanLabel(selectedSub.plan)} - {getStatusLabel(selectedSub.status)}</p>
                 </div>
               </div>
               
               <div>
                 <Label>الخطة</Label>
                 <Select value={editPlan} onValueChange={setEditPlan}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="FREE">مجاني</SelectItem>
                     <SelectItem value="BASIC">أساسي</SelectItem>
@@ -405,44 +348,18 @@ export default function AdminSubscriptions({ showMessage }: AdminSubscriptionsPr
               </div>
               
               <div>
-                <Label>تاريخ الانتهاء</Label>
-                <Input
-                  type="date"
-                  value={editEndDate}
-                  onChange={(e) => setEditEndDate(e.target.value)}
-                />
-              </div>
-              
-              <div>
-                <Label>تمديد الاشتراك (أيام)</Label>
+                <Label>تمديد (أيام)</Label>
                 <div className="flex gap-2">
-                  <Input
-                    type="number"
-                    value={extendDays}
-                    onChange={(e) => setExtendDays(e.target.value)}
-                    placeholder="عدد الأيام"
-                  />
-                  <Button onClick={extendSubscription} disabled={!extendDays || actionLoading}>
-                    تمديد
-                  </Button>
+                  <Input type="number" value={extendDays} onChange={(e) => setExtendDays(e.target.value)} placeholder="عدد الأيام" />
+                  <Button onClick={extendSubscription} disabled={!extendDays || actionLoading}>تمديد</Button>
                 </div>
               </div>
             </div>
           )}
-          <DialogFooter className="flex flex-col sm:flex-row gap-2">
-            <Button
-              variant="destructive"
-              onClick={cancelSubscription}
-              disabled={actionLoading}
-            >
-              إلغاء الاشتراك
-            </Button>
-            <Button
-              onClick={updateSubscription}
-              disabled={actionLoading}
-              className="bg-purple-600 hover:bg-purple-700"
-            >
-              {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'حفظ التغييرات'}
+          <DialogFooter className="flex gap-2">
+            <Button variant="destructive" onClick={cancelSubscription} disabled={actionLoading}>إلغاء الاشتراك</Button>
+            <Button onClick={updateSubscription} disabled={actionLoading} className="bg-purple-600 hover:bg-purple-700">
+              {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'حفظ'}
             </Button>
           </DialogFooter>
         </DialogContent>
