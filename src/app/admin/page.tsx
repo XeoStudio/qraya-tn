@@ -1,62 +1,27 @@
 'use client'
 
-import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { useAuth } from '@/lib/auth-context'
-import AdminPage from '@/components/AdminPage'
+import dynamic from 'next/dynamic'
 import { Loader2, Crown } from 'lucide-react'
 
-export default function AdminRoute() {
-  const { user, loading, isAdmin, isAuthenticated } = useAuth()
-  const router = useRouter()
-
-  useEffect(() => {
-    if (!loading && !isAuthenticated) {
-      router.push('/?auth=login')
-    } else if (!loading && isAuthenticated && !isAdmin) {
-      router.push('/')
-    }
-  }, [loading, isAuthenticated, isAdmin, router])
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin text-purple-500 mx-auto mb-4" />
-          <p className="text-gray-500">جاري التحميل...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (!isAuthenticated || !isAdmin) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-        <div className="text-center">
-          <Crown className="w-16 h-16 text-purple-500 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">وصول مرفوض</h1>
-          <p className="text-gray-500">ليس لديك صلاحية للوصول إلى هذه الصفحة</p>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900" dir="rtl">
-      <div className="container mx-auto px-4 py-6">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-500 to-blue-500 flex items-center justify-center">
-              <Crown className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">لوحة الإدارة</h1>
-              <p className="text-sm text-gray-500">{user?.name || 'المدير'}</p>
-            </div>
+// Dynamically import AdminClient with SSR disabled
+const AdminClient = dynamic(() => import('@/components/AdminClient'), {
+  ssr: false,
+  loading: () => (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 dark:from-gray-950 dark:via-gray-900 dark:to-slate-950 flex items-center justify-center">
+      <div className="text-center">
+        <div className="relative w-20 h-20 mx-auto mb-6">
+          <div className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 animate-spin opacity-20" />
+          <div className="absolute inset-2 rounded-full bg-white dark:bg-gray-900 flex items-center justify-center">
+            <Crown className="w-8 h-8 text-purple-500" />
           </div>
         </div>
-        <AdminPage />
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">جاري التحميل...</h2>
+        <p className="text-gray-500 text-sm">تحميل لوحة الإدارة</p>
       </div>
     </div>
   )
+})
+
+export default function AdminPage() {
+  return <AdminClient />
 }
