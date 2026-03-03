@@ -7,12 +7,9 @@ import HeroSection from '@/components/HeroSection'
 import QuickActions from '@/components/QuickActions'
 import PricingSection from '@/components/PricingSection'
 import AuthModal from '@/components/AuthModal'
-import UserDashboard from '@/components/UserDashboard'
-import AdminPage from '@/components/AdminPage'
-import ChatInterface from '@/components/ChatInterface'
-import ToolsPanel from '@/components/ToolsPanel'
 import WhatsAppButton from '@/components/WhatsAppButton'
 import { Button } from '@/components/ui/button'
+import Link from 'next/link'
 import { 
   BookOpen, 
   Menu, 
@@ -24,25 +21,35 @@ import {
   Sparkles
 } from 'lucide-react'
 
-type View = 'home' | 'chat' | 'tools' | 'dashboard' | 'admin'
-
 function MainContent() {
   const { user, loading, isAuthenticated, isAdmin, logout } = useAuth()
-  const [currentView, setCurrentView] = useState<View>('home')
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
-  // Redirect admin to admin panel on load
+  // Check for auth param in URL
   useEffect(() => {
-    if (isAdmin && currentView === 'home') {
-      // Admin can see both views
+    const params = new URLSearchParams(window.location.search)
+    const authParam = params.get('auth')
+    if (authParam === 'login') {
+      // Use setTimeout to avoid setState in effect warning
+      const timer = setTimeout(() => {
+        setAuthMode('login')
+        setShowAuthModal(true)
+      }, 0)
+      return () => clearTimeout(timer)
+    } else if (authParam === 'register') {
+      const timer = setTimeout(() => {
+        setAuthMode('register')
+        setShowAuthModal(true)
+      }, 0)
+      return () => clearTimeout(timer)
     }
-  }, [isAdmin, currentView])
+  }, [])
 
   const handleGetStarted = () => {
     if (isAuthenticated) {
-      setCurrentView('chat')
+      window.location.href = '/chat'
     } else {
       setAuthMode('register')
       setShowAuthModal(true)
@@ -50,9 +57,6 @@ function MainContent() {
   }
 
   const handleShowPricing = () => {
-    // First switch to home view
-    setCurrentView('home')
-    // Then scroll to pricing section after a short delay
     setTimeout(() => {
       const pricingSection = document.getElementById('pricing')
       if (pricingSection) {
@@ -65,8 +69,11 @@ function MainContent() {
     if (action === 'login') {
       setAuthMode('login')
       setShowAuthModal(true)
+    } else if (isAuthenticated) {
+      window.location.href = '/tools'
     } else {
-      setCurrentView('tools')
+      setAuthMode('login')
+      setShowAuthModal(true)
     }
   }
 
@@ -96,54 +103,46 @@ function MainContent() {
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
-            <button
-              onClick={() => setCurrentView('home')}
+            <Link
+              href="/"
               className="flex items-center gap-2 text-xl font-bold text-gray-900 dark:text-white"
             >
               <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 flex items-center justify-center">
                 <BookOpen className="w-6 h-6 text-white" />
               </div>
               <span className="hidden sm:inline">مساعد دراسة تونسي</span>
-            </button>
+            </Link>
 
             {/* Desktop Navigation */}
             <div className="hidden md:flex items-center gap-2">
               {isAuthenticated ? (
                 <>
-                  <Button
-                    variant={currentView === 'chat' ? 'default' : 'ghost'}
-                    onClick={() => setCurrentView('chat')}
-                    className="gap-2"
-                  >
-                    <MessageCircle className="w-4 h-4" />
-                    المحادثة
-                  </Button>
-                  <Button
-                    variant={currentView === 'tools' ? 'default' : 'ghost'}
-                    onClick={() => setCurrentView('tools')}
-                    className="gap-2"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    الأدوات
-                  </Button>
-                  {isAdmin && (
-                    <Button
-                      variant={currentView === 'admin' ? 'default' : 'ghost'}
-                      onClick={() => setCurrentView('admin')}
-                      className="gap-2"
-                    >
-                      <Crown className="w-4 h-4" />
-                      الإدارة
+                  <Link href="/chat">
+                    <Button variant="ghost" className="gap-2">
+                      <MessageCircle className="w-4 h-4" />
+                      المحادثة
                     </Button>
+                  </Link>
+                  <Link href="/tools">
+                    <Button variant="ghost" className="gap-2">
+                      <Sparkles className="w-4 h-4" />
+                      الأدوات
+                    </Button>
+                  </Link>
+                  {isAdmin && (
+                    <Link href="/admin">
+                      <Button variant="ghost" className="gap-2">
+                        <Crown className="w-4 h-4" />
+                        الإدارة
+                      </Button>
+                    </Link>
                   )}
-                  <Button
-                    variant={currentView === 'dashboard' ? 'default' : 'ghost'}
-                    onClick={() => setCurrentView('dashboard')}
-                    className="gap-2"
-                  >
-                    <Settings className="w-4 h-4" />
-                    حسابي
-                  </Button>
+                  <Link href="/dashboard">
+                    <Button variant="ghost" className="gap-2">
+                      <Settings className="w-4 h-4" />
+                      حسابي
+                    </Button>
+                  </Link>
                   <div className="w-px h-8 bg-gray-200 dark:bg-gray-700 mx-2" />
                   <div className="flex items-center gap-2">
                     <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center text-white text-sm font-medium">
@@ -196,40 +195,32 @@ function MainContent() {
               >
                 {isAuthenticated ? (
                   <div className="space-y-2">
-                    <Button
-                      variant={currentView === 'chat' ? 'default' : 'ghost'}
-                      onClick={() => { setCurrentView('chat'); setMobileMenuOpen(false) }}
-                      className="w-full justify-start gap-2"
-                    >
-                      <MessageCircle className="w-4 h-4" />
-                      المحادثة
-                    </Button>
-                    <Button
-                      variant={currentView === 'tools' ? 'default' : 'ghost'}
-                      onClick={() => { setCurrentView('tools'); setMobileMenuOpen(false) }}
-                      className="w-full justify-start gap-2"
-                    >
-                      <Sparkles className="w-4 h-4" />
-                      الأدوات
-                    </Button>
-                    {isAdmin && (
-                      <Button
-                        variant={currentView === 'admin' ? 'default' : 'ghost'}
-                        onClick={() => { setCurrentView('admin'); setMobileMenuOpen(false) }}
-                        className="w-full justify-start gap-2"
-                      >
-                        <Crown className="w-4 h-4" />
-                        الإدارة
+                    <Link href="/chat" onClick={() => setMobileMenuOpen(false)}>
+                      <Button variant="ghost" className="w-full justify-start gap-2">
+                        <MessageCircle className="w-4 h-4" />
+                        المحادثة
                       </Button>
+                    </Link>
+                    <Link href="/tools" onClick={() => setMobileMenuOpen(false)}>
+                      <Button variant="ghost" className="w-full justify-start gap-2">
+                        <Sparkles className="w-4 h-4" />
+                        الأدوات
+                      </Button>
+                    </Link>
+                    {isAdmin && (
+                      <Link href="/admin" onClick={() => setMobileMenuOpen(false)}>
+                        <Button variant="ghost" className="w-full justify-start gap-2">
+                          <Crown className="w-4 h-4" />
+                          الإدارة
+                        </Button>
+                      </Link>
                     )}
-                    <Button
-                      variant={currentView === 'dashboard' ? 'default' : 'ghost'}
-                      onClick={() => { setCurrentView('dashboard'); setMobileMenuOpen(false) }}
-                      className="w-full justify-start gap-2"
-                    >
-                      <Settings className="w-4 h-4" />
-                      حسابي
-                    </Button>
+                    <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)}>
+                      <Button variant="ghost" className="w-full justify-start gap-2">
+                        <Settings className="w-4 h-4" />
+                        حسابي
+                      </Button>
+                    </Link>
                     <Button
                       variant="ghost"
                       onClick={() => { logout(); setMobileMenuOpen(false) }}
@@ -264,181 +255,116 @@ function MainContent() {
 
       {/* Main Content */}
       <main className="pt-16">
-        <AnimatePresence mode="wait">
-          {currentView === 'home' && (
-            <motion.div
-              key="home"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
-              <HeroSection
-                onGetStarted={handleGetStarted}
-                onShowPricing={handleShowPricing}
-                isAuthenticated={isAuthenticated}
-              />
-              <QuickActions
-                onAction={handleQuickAction}
-                isAuthenticated={isAuthenticated}
-              />
-              <PricingSection onContact={handleWhatsAppContact} />
-              
-              {/* Footer */}
-              <footer className="py-12 bg-gray-900 text-white">
-                <div className="container mx-auto px-4">
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
-                    {/* Brand */}
-                    <div>
-                      <div className="flex items-center gap-2 mb-4">
-                        <BookOpen className="w-6 h-6" />
-                        <span className="font-bold text-lg">مساعد دراسة تونسي</span>
-                      </div>
-                      <p className="text-sm text-gray-400 leading-relaxed">
-                        منصة تعليمية ذكية للطلاب التونسيين. نساعدك في فهم الدروس، التلخيص، والمراجعة.
-                      </p>
-                    </div>
-                    
-                    {/* Quick Links */}
-                    <div>
-                      <h4 className="font-semibold mb-4">روابط سريعة</h4>
-                      <ul className="space-y-2 text-sm text-gray-400">
-                        <li>
-                          <button onClick={handleGetStarted} className="hover:text-white transition-colors">
-                            ابدأ المحادثة
-                          </button>
-                        </li>
-                        <li>
-                          <button onClick={handleShowPricing} className="hover:text-white transition-colors">
-                            خطط الاشتراك
-                          </button>
-                        </li>
-                        <li>
-                          <a href="/support" className="hover:text-white transition-colors">
-                            الدعم الفني
-                          </a>
-                        </li>
-                        <li>
-                          <a href="/about" className="hover:text-white transition-colors">
-                            من نحن
-                          </a>
-                        </li>
-                      </ul>
-                    </div>
-                    
-                    {/* Legal */}
-                    <div>
-                      <h4 className="font-semibold mb-4">القانونية</h4>
-                      <ul className="space-y-2 text-sm text-gray-400">
-                        <li>
-                          <a href="/privacy" className="hover:text-white transition-colors">
-                            سياسة الخصوصية
-                          </a>
-                        </li>
-                        <li>
-                          <a href="/terms" className="hover:text-white transition-colors">
-                            شروط الاستخدام
-                          </a>
-                        </li>
-                        <li>
-                          <a href="/contact" className="hover:text-white transition-colors">
-                            تواصل معنا
-                          </a>
-                        </li>
-                      </ul>
-                    </div>
-                    
-                    {/* Contact */}
-                    <div>
-                      <h4 className="font-semibold mb-4">تواصل معنا</h4>
-                      <ul className="space-y-2 text-sm text-gray-400">
-                        <li className="flex items-center gap-2">
-                          <span>واتساب:</span>
-                          <a 
-                            href="https://wa.me/21624239724" 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="hover:text-green-400 transition-colors"
-                            dir="ltr"
-                          >
-                            +216 24 239 724
-                          </a>
-                        </li>
-                        <li className="flex items-center gap-2">
-                          <span>البريد:</span>
-                          <a 
-                            href="mailto:wissemlahkiri2@gmail.com"
-                            className="hover:text-blue-400 transition-colors"
-                            dir="ltr"
-                          >
-                            wissemlahkiri2@gmail.com
-                          </a>
-                        </li>
-                      </ul>
-                    </div>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+        >
+          <HeroSection
+            onGetStarted={handleGetStarted}
+            onShowPricing={handleShowPricing}
+            isAuthenticated={isAuthenticated}
+          />
+          <QuickActions
+            onAction={handleQuickAction}
+            isAuthenticated={isAuthenticated}
+          />
+          <PricingSection onContact={handleWhatsAppContact} />
+          
+          {/* Footer */}
+          <footer className="py-12 bg-gray-900 text-white">
+            <div className="container mx-auto px-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
+                {/* Brand */}
+                <div>
+                  <div className="flex items-center gap-2 mb-4">
+                    <BookOpen className="w-6 h-6" />
+                    <span className="font-bold text-lg">مساعد دراسة تونسي</span>
                   </div>
-                  
-                  <div className="border-t border-gray-800 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
-                    <p className="text-sm text-gray-400">
-                      © 2025 جميع الحقوق محفوظة - Wissem Lahkiri
-                    </p>
-                    <div className="flex items-center gap-4 text-sm text-gray-400">
-                      <span>🇹🇳 صنع في تونس</span>
-                    </div>
-                  </div>
+                  <p className="text-sm text-gray-400 leading-relaxed">
+                    منصة تعليمية ذكية للطلاب التونسيين. نساعدك في فهم الدروس، التلخيص، والمراجعة.
+                  </p>
                 </div>
-              </footer>
-            </motion.div>
-          )}
-
-          {currentView === 'chat' && (
-            <motion.div
-              key="chat"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="container mx-auto px-4 py-8"
-            >
-              <ChatInterface />
-            </motion.div>
-          )}
-
-          {currentView === 'tools' && (
-            <motion.div
-              key="tools"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="container mx-auto px-4 py-8"
-            >
-              <h1 className="text-2xl font-bold mb-6 text-center">أدوات الدراسة</h1>
-              <ToolsPanel />
-            </motion.div>
-          )}
-
-          {currentView === 'dashboard' && (
-            <motion.div
-              key="dashboard"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="container mx-auto px-4 py-8"
-            >
-              <UserDashboard onShowPricing={handleShowPricing} />
-            </motion.div>
-          )}
-
-          {currentView === 'admin' && isAdmin && (
-            <motion.div
-              key="admin"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="container mx-auto px-4 py-8"
-            >
-              <AdminPage />
-            </motion.div>
-          )}
-        </AnimatePresence>
+                
+                {/* Quick Links */}
+                <div>
+                  <h4 className="font-semibold mb-4">روابط سريعة</h4>
+                  <ul className="space-y-2 text-sm text-gray-400">
+                    <li>
+                      <button onClick={handleGetStarted} className="hover:text-white transition-colors">
+                        ابدأ المحادثة
+                      </button>
+                    </li>
+                    <li>
+                      <button onClick={handleShowPricing} className="hover:text-white transition-colors">
+                        خطط الاشتراك
+                      </button>
+                    </li>
+                    <li>
+                      <Link href="/support" className="hover:text-white transition-colors">
+                        الدعم الفني
+                      </Link>
+                    </li>
+                  </ul>
+                </div>
+                
+                {/* Legal */}
+                <div>
+                  <h4 className="font-semibold mb-4">القانونية</h4>
+                  <ul className="space-y-2 text-sm text-gray-400">
+                    <li>
+                      <Link href="/privacy" className="hover:text-white transition-colors">
+                        سياسة الخصوصية
+                      </Link>
+                    </li>
+                    <li>
+                      <Link href="/terms" className="hover:text-white transition-colors">
+                        شروط الاستخدام
+                      </Link>
+                    </li>
+                  </ul>
+                </div>
+                
+                {/* Contact */}
+                <div>
+                  <h4 className="font-semibold mb-4">تواصل معنا</h4>
+                  <ul className="space-y-2 text-sm text-gray-400">
+                    <li className="flex items-center gap-2">
+                      <span>واتساب:</span>
+                      <a 
+                        href="https://wa.me/21624239724" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="hover:text-green-400 transition-colors"
+                        dir="ltr"
+                      >
+                        +216 24 239 724
+                      </a>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span>البريد:</span>
+                      <a 
+                        href="mailto:wissemlahkiri2@gmail.com"
+                        className="hover:text-blue-400 transition-colors"
+                        dir="ltr"
+                      >
+                        wissemlahkiri2@gmail.com
+                      </a>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+              
+              <div className="border-t border-gray-800 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
+                <p className="text-sm text-gray-400">
+                  © 2025 جميع الحقوق محفوظة - Wissem Lahkiri
+                </p>
+                <div className="flex items-center gap-4 text-sm text-gray-400">
+                  <span>🇹🇳 صنع في تونس</span>
+                </div>
+              </div>
+            </div>
+          </footer>
+        </motion.div>
       </main>
 
       {/* Auth Modal */}
