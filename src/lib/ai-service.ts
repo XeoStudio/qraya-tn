@@ -1,6 +1,7 @@
 /**
  * Real AI Service - Connected to ktai API
  * Full Tunisian educational context with real AI responses
+ * Supports session memory for context-aware conversations
  */
 
 // API Configuration
@@ -107,7 +108,12 @@ ${user.subscription?.plan && user.subscription.plan !== 'FREE' ? `
 ## مزايا الاشتراك (${user.subscription.plan}):
 ${user.subscription.agentMode ? '• شرح مفصل وعميق' : ''}
 ${user.subscription.advancedAI ? '• تحليل أعمق وإجابات أشمل' : ''}
-` : ''}`
+` : ''}
+
+## مهم:
+- أجب بشكل مباشر ومنظم
+- استخدم التنسيق والترقيم
+- كن مختصراً عند الحاجة ومفصلاً عند الضرورة`
 }
 
 function getLevelInfo(level: string | null) {
@@ -169,14 +175,14 @@ function getSpecialization(section: string | null): string {
 async function callAI(
   systemPrompt: string,
   userMessage: string,
-  options: { temperature?: number; maxTokens?: number; stream?: boolean } = {}
+  options: { temperature?: number; maxTokens?: number; timeout?: number } = {}
 ): Promise<string> {
-  const { temperature = 0.7, maxTokens = 1500 } = options
+  const { temperature = 0.7, maxTokens = 2000, timeout = 55000 } = options
 
   try {
-    // Use AbortController for timeout (30 seconds for faster response)
+    // Use AbortController for timeout
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 30000)
+    const timeoutId = setTimeout(() => controller.abort(), timeout)
 
     const response = await fetch(`${AI_CONFIG.baseUrl}/chat/completions`, {
       method: 'POST',
@@ -229,22 +235,23 @@ export async function chat(
 
     let fullMessage = message
 
-    // Add conversation history
+    // Add conversation history for session memory (up to 10 messages for better context)
     if (options.history && options.history.length > 0) {
-      const recentHistory = options.history.slice(-8)
+      const recentHistory = options.history.slice(-10)
       const historyContext = recentHistory
         .filter(m => m.role !== 'system')
         .map(m => `${m.role === 'user' ? 'الطالب' : 'المعلم'}: ${m.content}`)
-        .join('\n')
+        .join('\n\n')
 
       if (historyContext) {
-        fullMessage = `[محادثة سابقة]\n${historyContext}\n\n[السؤال الحالي]\n${message}`
+        fullMessage = `[محادثة سابقة - تذكر سياق المحادثة]\n${historyContext}\n\n[السؤال الحالي]\n${message}\n\n[تعليمات: أجب على السؤال الحالي مع مراعاة سياق المحادثة السابقة. لا تكرر ما قلته سابقاً إلا إذا كان ضرورياً للشرح.]`
       }
     }
 
     const response = await callAI(systemPrompt, fullMessage, {
       temperature: options.thinking ? 0.5 : 0.7,
-      maxTokens: options.thinking ? 3000 : 2000
+      maxTokens: options.thinking ? 3000 : 2000,
+      timeout: 55000
     })
 
     return {
@@ -253,10 +260,108 @@ export async function chat(
     }
   } catch (error: unknown) {
     console.error('Chat error:', error)
+    
+    // Check if it's a timeout error
+    if (error instanceof Error && error.name === 'AbortError') {
+      return {
+        success: false,
+        content: '',
+        error: 'انتهت مهلة الطلب. يرجى المحاولة مرة أخرى أو تقصير رسالتك.'
+      }
+    }
+    
     return {
       success: false,
       content: '',
       error: error instanceof Error ? error.message : 'حدث خطأ في الاتصال بالذكاء الاصطناعي'
+    }
+  }
+}
+
+// Chat with image support
+export async function chatWithImage(
+  message: string,
+  imageBase64: string,
+  user: UserProfile,
+  options: {
+    history?: ChatMessage[]
+  } = {}
+): Promise<AIResponse> {
+  try {
+    const systemPrompt = buildTunisianContext(user) + `\n\nيمكنك تحليل الصور والرد على الأسئلة المتعلقة بها.`
+
+    // Build messages array with history
+    const messages: { role: string; content: string | unknown[] }[] = [
+      { role: 'system', content: systemPrompt }
+    ]
+
+    // Add conversation history
+    if (options.history && options.history.length > 0) {
+      const recentHistory = options.history.slice(-8)
+      for (const msg of recentHistory) {
+        if (msg.role !== 'system') {
+          messages.push({
+            role: msg.role,
+            content: msg.content
+          })
+        }
+      }
+    }
+
+    // Add current message with image
+    messages.push({
+      role: 'user',
+      content: [
+        { type: 'text', text: message || 'ماذا ترى في هذه الصورة؟' },
+        { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }
+      ]
+    })
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 60000)
+
+    const response = await fetch(`${AI_CONFIG.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${AI_CONFIG.apiKey}`
+      },
+      body: JSON.stringify({
+        model: AI_CONFIG.model,
+        messages,
+        temperature: 0.7,
+        max_tokens: 2000
+      }),
+      signal: controller.signal
+    })
+
+    clearTimeout(timeoutId)
+
+    if (!response.ok) {
+      throw new Error(`AI API error: ${response.status}`)
+    }
+
+    const data = await response.json()
+    
+    return {
+      success: true,
+      content: data.choices?.[0]?.message?.content || ''
+    }
+  } catch (error: unknown) {
+    console.error('Chat with image error:', error)
+    
+    if (error instanceof Error && error.name === 'AbortError') {
+      return {
+        success: false,
+        content: '',
+        error: 'انتهت مهلة الطلب. يرجى المحاولة مرة أخرى.'
+      }
+    }
+    
+    return {
+      success: false,
+      content: '',
+      error: 'حدث خطأ في تحليل الصورة'
     }
   }
 }
@@ -293,7 +398,7 @@ export async function generateQuiz(
 }`
 
   try {
-    const response = await callAI(systemPrompt, userPrompt, { temperature: 0.5, maxTokens: 3000 })
+    const response = await callAI(systemPrompt, userPrompt, { temperature: 0.5, maxTokens: 3000, timeout: 45000 })
 
     // Extract JSON from response
     const jsonMatch = response.match(/\{[\s\S]*\}/)
@@ -335,7 +440,7 @@ ${goal ? `**الهدف:** ${goal}` : ''}
 7. استخدم الأيام التونسية (السبت، الأحد، الإثنين...)`
 
   try {
-    const plan = await callAI(systemPrompt, userPrompt, { temperature: 0.7, maxTokens: 3000 })
+    const plan = await callAI(systemPrompt, userPrompt, { temperature: 0.7, maxTokens: 3000, timeout: 45000 })
     return { success: true, plan }
   } catch (error) {
     console.error('Study plan error:', error)
@@ -361,7 +466,7 @@ ${content}
 5. اختم بجملة ملخصة`
 
   try {
-    const summary = await callAI(systemPrompt, userPrompt, { temperature: 0.6, maxTokens: 2000 })
+    const summary = await callAI(systemPrompt, userPrompt, { temperature: 0.6, maxTokens: 2000, timeout: 45000 })
     return { success: true, summary }
   } catch (error) {
     console.error('Summary error:', error)
@@ -392,7 +497,7 @@ export async function generateFlashcards(
 }`
 
   try {
-    const response = await callAI(systemPrompt, userPrompt, { temperature: 0.6, maxTokens: 2000 })
+    const response = await callAI(systemPrompt, userPrompt, { temperature: 0.6, maxTokens: 2000, timeout: 45000 })
 
     const jsonMatch = response.match(/\{[\s\S]*\}/)
     if (jsonMatch) {
@@ -430,7 +535,7 @@ export async function webSearch(
   ]
 }`
 
-    const response = await callAI(systemPrompt, userPrompt, { temperature: 0.3, maxTokens: 1500 })
+    const response = await callAI(systemPrompt, userPrompt, { temperature: 0.3, maxTokens: 1500, timeout: 30000 })
 
     const jsonMatch = response.match(/\{[\s\S]*\}/)
     if (jsonMatch) {
@@ -473,7 +578,7 @@ export async function generateSupportResponse(
 قدم رداً مناسباً.`
 
   try {
-    return await callAI(systemPrompt, userPrompt, { temperature: 0.7, maxTokens: 500 })
+    return await callAI(systemPrompt, userPrompt, { temperature: 0.7, maxTokens: 500, timeout: 30000 })
   } catch {
     return 'شكراً لتواصلك معنا. سيتم الرد عليك قريباً.'
   }

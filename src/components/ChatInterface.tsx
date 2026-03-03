@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { 
   Send, 
   Loader2, 
@@ -34,9 +33,10 @@ import {
   Languages,
   Copy,
   Check,
-  Mic,
-  MicOff
+  ScanText,
+  Eye
 } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { AI_TIMEOUT, ERROR_MESSAGES } from '@/lib/constants'
 
 interface Message {
@@ -252,6 +252,14 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
   const [uploadedImage, setUploadedImage] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   
+  // Image upload states
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState('')
+  const [showImageOptions, setShowImageOptions] = useState(false)
+  const [pendingImage, setPendingImage] = useState<string | null>(null)
+  const [pendingImageFile, setPendingImageFile] = useState<File | null>(null)
+  const [imageMode, setImageMode] = useState<'ocr' | 'vision'>('ocr')
+  
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -301,12 +309,22 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
       return
     }
     
+    setIsUploading(true)
+    setUploadProgress('جاري قراءة الملف...')
+    
     // Read file content
     const reader = new FileReader()
     reader.onload = async (event) => {
       const content = event.target?.result as string
       setUploadedFile(file)
       setInput(prev => prev + `\n\n[ملف مرفق: ${file.name}]\n${content.substring(0, 2000)}${content.length > 2000 ? '...' : ''}`)
+      setIsUploading(false)
+      setUploadProgress('')
+    }
+    reader.onerror = () => {
+      setError('حدث خطأ في قراءة الملف')
+      setIsUploading(false)
+      setUploadProgress('')
     }
     reader.readAsText(file)
   }
@@ -325,30 +343,57 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
     const reader = new FileReader()
     reader.onload = async (event) => {
       const base64 = event.target?.result as string
-      setUploadedImage(base64)
-      
-      // OCR extraction
-      try {
-        const res = await fetch('/api/ocr', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image: base64.split(',')[1] }),
-          credentials: 'include'
-        })
-        const data = await res.json()
-        
-        if (data.success && data.text) {
-          setInput(prev => prev + `\n\n[نص مستخرج من الصورة]\n${data.text}`)
-        }
-      } catch {
-        setInput(prev => prev + '\n\n[تم رفع الصورة]')
-      }
+      // Store pending image and show options dialog
+      setPendingImage(base64)
+      setPendingImageFile(file)
+      setShowImageOptions(true)
     }
     reader.readAsDataURL(file)
   }
 
+  const processImageWithOCR = async () => {
+    if (!pendingImage) return
+    
+    setShowImageOptions(false)
+    setIsUploading(true)
+    setUploadProgress('جاري استخراج النص من الصورة...')
+    
+    try {
+      const res = await fetch('/api/ocr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: pendingImage.split(',')[1] }),
+        credentials: 'include'
+      })
+      const data = await res.json()
+      
+      if (data.success && data.text) {
+        setInput(prev => prev + `\n\n[نص مستخرج من الصورة]\n${data.text}`)
+      } else {
+        setError(data.error || 'فشل في استخراج النص')
+      }
+    } catch {
+      setError('حدث خطأ في استخراج النص')
+    } finally {
+      setIsUploading(false)
+      setUploadProgress('')
+      setPendingImage(null)
+      setPendingImageFile(null)
+    }
+  }
+
+  const processImageWithVision = () => {
+    if (!pendingImage) return
+    
+    setShowImageOptions(false)
+    setUploadedImage(pendingImage)
+    setInput(prev => prev + '\n\n[صورة مرفوعة للتحليل]')
+    setPendingImage(null)
+    setPendingImageFile(null)
+  }
+
   const sendMessage = useCallback(async () => {
-    if (!input.trim() || loading) return
+    if (!input.trim() || loading || isUploading) return
 
     const userMessage = input.trim()
     setInput('')
@@ -366,6 +411,8 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
     
     setMessages(prev => [...prev, newMessage])
     setLoading(true)
+    
+    const currentUploadedImage = uploadedImage
     setUploadedFile(null)
     setUploadedImage(null)
 
@@ -383,49 +430,93 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
     }
 
     try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: userMessage,
-          history: messages.map(m => ({ role: m.role, content: m.content })),
-          webResults: sources,
-          enableWebSearch: webSearchEnabled,
-          agentMode
-        }),
-        credentials: 'include',
-        signal: controller.signal
-      })
+      // If image is uploaded, use vision API
+      if (currentUploadedImage) {
+        const res = await fetch('/api/chat/vision', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: userMessage.replace('[صورة مرفوعة للتحليل]', '').trim() || 'ماذا ترى في هذه الصورة؟',
+            image: currentUploadedImage.split(',')[1],
+            history: messages.map(m => ({ role: m.role, content: m.content })),
+            agentMode
+          }),
+          credentials: 'include',
+          signal: controller.signal
+        })
 
-      clearTimeout(timeoutId)
+        clearTimeout(timeoutId)
 
-      if (!res.ok) {
-        if (res.status === 401) {
-          setError(ERROR_MESSAGES.UNAUTHORIZED)
-          setMessages(prev => prev.filter(m => m.id !== tempId))
-          return
+        if (!res.ok) {
+          if (res.status === 401) {
+            setError(ERROR_MESSAGES.UNAUTHORIZED)
+            setMessages(prev => prev.filter(m => m.id !== tempId))
+            return
+          }
+          throw new Error(ERROR_MESSAGES.AI_ERROR)
         }
-        if (res.status === 429) {
-          setError(ERROR_MESSAGES.QUOTA_EXCEEDED)
-          return
+
+        const data = await res.json()
+
+        if (data.success) {
+          setMessages(prev => 
+            prev.map(m => m.id === tempId ? m : m).concat({ 
+              id: `msg-${Date.now()}`,
+              role: 'assistant', 
+              content: data.response,
+              sources: sources.length > 0 ? sources : undefined,
+              timestamp: new Date()
+            })
+          )
+        } else {
+          setError(data.error || ERROR_MESSAGES.AI_ERROR)
         }
-        throw new Error(ERROR_MESSAGES.AI_ERROR)
-      }
-
-      const data = await res.json()
-
-      if (data.success) {
-        setMessages(prev => 
-          prev.map(m => m.id === tempId ? m : m).concat({ 
-            id: `msg-${Date.now()}`,
-            role: 'assistant', 
-            content: data.response,
-            sources: sources.length > 0 ? sources : undefined,
-            timestamp: new Date()
-          })
-        )
       } else {
-        setError(data.error || ERROR_MESSAGES.AI_ERROR)
+        // Regular text chat
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: userMessage,
+            history: messages.map(m => ({ role: m.role, content: m.content })),
+            webResults: sources,
+            enableWebSearch: webSearchEnabled,
+            agentMode
+          }),
+          credentials: 'include',
+          signal: controller.signal
+        })
+
+        clearTimeout(timeoutId)
+
+        if (!res.ok) {
+          if (res.status === 401) {
+            setError(ERROR_MESSAGES.UNAUTHORIZED)
+            setMessages(prev => prev.filter(m => m.id !== tempId))
+            return
+          }
+          if (res.status === 429) {
+            setError(ERROR_MESSAGES.QUOTA_EXCEEDED)
+            return
+          }
+          throw new Error(ERROR_MESSAGES.AI_ERROR)
+        }
+
+        const data = await res.json()
+
+        if (data.success) {
+          setMessages(prev => 
+            prev.map(m => m.id === tempId ? m : m).concat({ 
+              id: `msg-${Date.now()}`,
+              role: 'assistant', 
+              content: data.response,
+              sources: sources.length > 0 ? sources : undefined,
+              timestamp: new Date()
+            })
+          )
+        } else {
+          setError(data.error || ERROR_MESSAGES.AI_ERROR)
+        }
       }
     } catch (err: unknown) {
       clearTimeout(timeoutId)
@@ -437,7 +528,7 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
     } finally {
       setLoading(false)
     }
-  }, [input, loading, messages, webSearchEnabled, agentMode, uploadedFile, uploadedImage])
+  }, [input, loading, messages, webSearchEnabled, agentMode, uploadedFile, uploadedImage, isUploading])
 
   const clearChat = () => {
     setMessages([])
@@ -609,6 +700,14 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
                       )}
                     </div>
                     <div className="flex-1 max-w-[85%]">
+                      {/* Show image if available */}
+                      {message.imageData?.url && (
+                        <img 
+                          src={message.imageData.url} 
+                          alt="صورة مرفوعة" 
+                          className="max-w-[200px] rounded-lg mb-2 border"
+                        />
+                      )}
                       <div className={`rounded-2xl px-3 py-2 ${
                         message.role === 'user'
                           ? 'bg-blue-500 text-white ml-auto'
@@ -725,7 +824,7 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
       )}
 
       {/* Upload indicators */}
-      {(uploadedFile || uploadedImage) && (
+      {(uploadedFile || uploadedImage) && !isUploading && (
         <div className="mx-3 mb-2 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg flex items-center gap-2">
           {uploadedImage ? (
             <img src={uploadedImage} alt="صورة مرفوعة" className="w-10 h-10 rounded object-cover" />
@@ -733,7 +832,7 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
             <FileUp className="w-4 h-4 text-blue-500" />
           )}
           <span className="text-xs text-blue-600 flex-1">
-            {uploadedFile?.name || 'صورة مرفوعة'}
+            {uploadedFile?.name || 'صورة مرفوعة للتحليل'}
           </span>
           <Button
             variant="ghost"
@@ -743,6 +842,14 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
           >
             <X className="w-3 h-3" />
           </Button>
+        </div>
+      )}
+
+      {/* Uploading indicator */}
+      {isUploading && (
+        <div className="mx-3 mb-2 p-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg flex items-center gap-2">
+          <Loader2 className="w-4 h-4 animate-spin text-amber-500" />
+          <span className="text-xs text-amber-600 flex-1">{uploadProgress || 'جاري الرفع...'}</span>
         </div>
       )}
 
@@ -769,6 +876,7 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
             variant="outline"
             size="sm"
             onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
             className="text-xs gap-1"
           >
             <FileUp className="w-3 h-3" />
@@ -779,6 +887,7 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
             variant="outline"
             size="sm"
             onClick={() => imageInputRef.current?.click()}
+            disabled={isUploading}
             className="text-xs gap-1"
           >
             <Image className="w-3 h-3" />
@@ -800,11 +909,11 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
             }
             className="resize-none min-h-[40px] max-h-28 text-sm"
             onKeyDown={handleKeyDown}
-            disabled={loading}
+            disabled={loading || isUploading}
           />
           <Button
             type="submit"
-            disabled={!input.trim() || loading}
+            disabled={!input.trim() || loading || isUploading}
             className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 px-4"
             size="icon"
           >
@@ -819,6 +928,63 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
           Enter = سطر جديد • Ctrl+Enter = إرسال • {agentMode && 'وكيل ذكي مفعّل'}
         </p>
       </div>
+
+      {/* Image Options Dialog */}
+      <Dialog open={showImageOptions} onOpenChange={setShowImageOptions}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>خيار رفع الصورة</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {pendingImage && (
+              <img 
+                src={pendingImage} 
+                alt="معاينة الصورة" 
+                className="w-full max-h-40 object-contain rounded-lg border"
+              />
+            )}
+            <p className="text-sm text-gray-500 text-center">
+              اختر كيف تريد معالجة الصورة:
+            </p>
+            <div className="grid grid-cols-1 gap-2">
+              <Button
+                variant="outline"
+                onClick={processImageWithOCR}
+                className="justify-start gap-3 h-auto py-3"
+              >
+                <ScanText className="w-5 h-5 text-blue-500" />
+                <div className="text-right">
+                  <p className="font-medium">استخراج النص (OCR)</p>
+                  <p className="text-xs text-gray-500">استخراج النص المكتوب في الصورة</p>
+                </div>
+              </Button>
+              <Button
+                variant="outline"
+                onClick={processImageWithVision}
+                className="justify-start gap-3 h-auto py-3"
+              >
+                <Eye className="w-5 h-5 text-purple-500" />
+                <div className="text-right">
+                  <p className="font-medium">تحليل الصورة</p>
+                  <p className="text-xs text-gray-500">رفع الصورة للذكاء الاصطناعي للتحليل</p>
+                </div>
+              </Button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="ghost" 
+              onClick={() => {
+                setShowImageOptions(false)
+                setPendingImage(null)
+                setPendingImageFile(null)
+              }}
+            >
+              إلغاء
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

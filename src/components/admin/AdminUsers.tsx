@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -19,19 +19,16 @@ import {
   MoreVertical,
   Eye,
   Edit,
-  CreditCard,
-  Mail,
-  Clock,
-  Filter,
   Loader2,
   ChevronLeft,
   ChevronRight,
-  UserX,
-  UserCheck,
   Star,
-  X
+  X,
+  Users,
+  AlertCircle
 } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 
 interface AdminUser {
   id: string
@@ -59,13 +56,32 @@ interface AdminUsersProps {
   showMessage: (type: 'success' | 'error', message: string) => void
 }
 
+const planLabels: Record<string, string> = {
+  FREE: 'مجاني',
+  BASIC: 'أساسي',
+  PREMIUM: 'متقدم',
+  BAC_PRO: 'باك برو'
+}
+
+const roleLabels: Record<string, string> = {
+  USER: 'مستخدم',
+  PREMIUM: 'مميز',
+  ADMIN: 'مدير'
+}
+
+const statusLabels: Record<string, string> = {
+  ACTIVE: 'نشط',
+  BANNED: 'محظور',
+  INACTIVE: 'غير نشط'
+}
+
 export default function AdminUsers({ showMessage }: AdminUsersProps) {
   const [users, setUsers] = useState<AdminUser[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
-  const [planFilter, setPlanFilter] = useState('')
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   
@@ -82,34 +98,43 @@ export default function AdminUsers({ showMessage }: AdminUsersProps) {
   const [upgradePlan, setUpgradePlan] = useState('PREMIUM')
   const [upgradeDuration, setUpgradeDuration] = useState('30')
 
-  useEffect(() => {
-    fetchUsers()
-  }, [page, roleFilter, statusFilter, planFilter])
-
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     setLoading(true)
+    setError(null)
     try {
       const params = new URLSearchParams({
         page: page.toString(),
         limit: '20',
         ...(search && { search }),
         ...(roleFilter && { role: roleFilter }),
-        ...(statusFilter && { status: statusFilter }),
-        ...(planFilter && { plan: planFilter })
+        ...(statusFilter && { status: statusFilter })
       })
       
       const res = await fetch(`/api/admin?action=users&${params}`, { credentials: 'include' })
-      const data = await res.json()
-      if (data.success) {
-        setUsers(data.users)
-        setTotalPages(data.pagination.totalPages)
+      
+      if (!res.ok) {
+        throw new Error('فشل في تحميل البيانات')
       }
-    } catch (error) {
-      console.error('Error fetching users:', error)
+      
+      const data = await res.json()
+      
+      if (data.success) {
+        setUsers(data.users || [])
+        setTotalPages(data.pagination?.totalPages || 1)
+      } else {
+        throw new Error(data.error || 'حدث خطأ')
+      }
+    } catch (err) {
+      console.error('Error fetching users:', err)
+      setError(err instanceof Error ? err.message : 'حدث خطأ في تحميل المستخدمين')
     } finally {
       setLoading(false)
     }
-  }
+  }, [page, search, roleFilter, statusFilter])
+
+  useEffect(() => {
+    fetchUsers()
+  }, [fetchUsers])
 
   const handleSearch = () => {
     setPage(1)
@@ -141,7 +166,7 @@ export default function AdminUsers({ showMessage }: AdminUsersProps) {
       } else {
         showMessage('error', data.error || 'فشل في حظر المستخدم')
       }
-    } catch (error) {
+    } catch {
       showMessage('error', 'حدث خطأ')
     } finally {
       setActionLoading(false)
@@ -167,7 +192,7 @@ export default function AdminUsers({ showMessage }: AdminUsersProps) {
       } else {
         showMessage('error', data.error || 'فشل في إلغاء الحظر')
       }
-    } catch (error) {
+    } catch {
       showMessage('error', 'حدث خطأ')
     }
   }
@@ -191,13 +216,13 @@ export default function AdminUsers({ showMessage }: AdminUsersProps) {
       const data = await res.json()
       
       if (data.success) {
-        showMessage('success', `تم ترقية الاشتراك إلى ${planLabels[upgradePlan]} لمدة ${upgradeDuration} يوم`)
+        showMessage('success', `تم ترقية الاشتراك إلى ${planLabels[upgradePlan] || upgradePlan} لمدة ${upgradeDuration} يوم`)
         setShowUpgradeDialog(false)
         fetchUsers()
       } else {
         showMessage('error', data.error || 'فشل في ترقية الاشتراك')
       }
-    } catch (error) {
+    } catch {
       showMessage('error', 'حدث خطأ')
     } finally {
       setActionLoading(false)
@@ -226,42 +251,41 @@ export default function AdminUsers({ showMessage }: AdminUsersProps) {
       } else {
         showMessage('error', 'فشل في حفظ الملاحظات')
       }
-    } catch (error) {
+    } catch {
       showMessage('error', 'حدث خطأ')
     }
   }
 
-  const planLabels: Record<string, string> = {
-    FREE: 'مجاني',
-    BASIC: 'أساسي',
-    PREMIUM: 'متقدم',
-    BAC_PRO: 'باك برو'
-  }
-
-  const roleLabels: Record<string, string> = {
-    USER: 'مستخدم',
-    PREMIUM: 'مميز',
-    ADMIN: 'مدير'
-  }
-
-  const statusLabels: Record<string, string> = {
-    ACTIVE: 'نشط',
-    BANNED: 'محظور',
-    INACTIVE: 'غير نشط'
-  }
+  // Helper functions for safe label display
+  const getRoleLabel = (role: string) => roleLabels[role] || role
+  const getStatusLabel = (status: string) => statusLabels[status] || status
+  const getPlanLabel = (plan: string) => planLabels[plan] || plan
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-bold flex items-center gap-2">
-          <Eye className="w-5 h-5 text-purple-500" />
+          <Users className="w-5 h-5 text-purple-500" />
           إدارة المستخدمين
         </h3>
         <Button onClick={fetchUsers} variant="outline" size="sm" className="gap-2">
-          <RefreshCw className="w-4 h-4" />
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           تحديث
         </Button>
       </div>
+
+      {/* Error Alert */}
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription className="flex items-center justify-between">
+            {error}
+            <Button variant="ghost" size="sm" onClick={fetchUsers}>
+              إعادة المحاولة
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Filters */}
       <Card className="p-3">
@@ -274,7 +298,7 @@ export default function AdminUsers({ showMessage }: AdminUsersProps) {
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
               className="flex-1"
             />
-            <Button onClick={handleSearch} size="icon">
+            <Button onClick={handleSearch} size="icon" disabled={loading}>
               <Search className="w-4 h-4" />
             </Button>
           </div>
@@ -330,11 +354,17 @@ export default function AdminUsers({ showMessage }: AdminUsersProps) {
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-medium truncate">{user.name || 'بدون اسم'}</p>
                         <div className="flex gap-1">
-                          <Badge variant={user.role === 'ADMIN' ? 'default' : 'secondary'} className="text-xs">
-                            {roleLabels[user.role] || user.role}
+                          <Badge 
+                            variant={user.role === 'ADMIN' ? 'default' : 'secondary'} 
+                            className="text-xs"
+                          >
+                            {getRoleLabel(user.role)}
                           </Badge>
-                          <Badge variant={user.status === 'ACTIVE' ? 'default' : 'destructive'} className="text-xs">
-                            {statusLabels[user.status] || user.status}
+                          <Badge 
+                            variant={user.status === 'ACTIVE' ? 'default' : 'destructive'} 
+                            className="text-xs"
+                          >
+                            {getStatusLabel(user.status)}
                           </Badge>
                         </div>
                       </div>
@@ -345,9 +375,9 @@ export default function AdminUsers({ showMessage }: AdminUsersProps) {
                           {user.points} نقطة
                         </span>
                         <span>•</span>
-                        <span>{planLabels[user.plan] || user.plan}</span>
+                        <span>{getPlanLabel(user.plan)}</span>
                         <span>•</span>
-                        <span>{user.chatsCount} محادثة</span>
+                        <span>{user.chatsCount || 0} محادثة</span>
                       </div>
                     </div>
                   </div>
@@ -472,15 +502,15 @@ export default function AdminUsers({ showMessage }: AdminUsersProps) {
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
                   <p className="text-gray-500">الدور</p>
-                  <p className="font-medium">{roleLabels[selectedUser.role]}</p>
+                  <p className="font-medium">{getRoleLabel(selectedUser.role)}</p>
                 </div>
                 <div>
                   <p className="text-gray-500">الحالة</p>
-                  <p className="font-medium">{statusLabels[selectedUser.status]}</p>
+                  <p className="font-medium">{getStatusLabel(selectedUser.status)}</p>
                 </div>
                 <div>
                   <p className="text-gray-500">الخطة</p>
-                  <p className="font-medium">{planLabels[selectedUser.plan]}</p>
+                  <p className="font-medium">{getPlanLabel(selectedUser.plan)}</p>
                 </div>
                 <div>
                   <p className="text-gray-500">النقاط</p>
@@ -488,11 +518,11 @@ export default function AdminUsers({ showMessage }: AdminUsersProps) {
                 </div>
                 <div>
                   <p className="text-gray-500">المحادثات</p>
-                  <p className="font-medium">{selectedUser.chatsCount}</p>
+                  <p className="font-medium">{selectedUser.chatsCount || 0}</p>
                 </div>
                 <div>
                   <p className="text-gray-500">التذاكر</p>
-                  <p className="font-medium">{selectedUser.ticketsCount}</p>
+                  <p className="font-medium">{selectedUser.ticketsCount || 0}</p>
                 </div>
               </div>
               

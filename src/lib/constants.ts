@@ -194,5 +194,5 @@ export const ERROR_MESSAGES = {
   UNKNOWN: 'حدث خطأ غير متوقع'
 }
 
-// مهلة الانتظار (45 ثانية - أسرع)
-export const AI_TIMEOUT = 45000
+// مهلة الانتظار (60 ثانية - أكثر مرونة)
+export const AI_TIMEOUT = 60000
