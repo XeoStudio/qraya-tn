@@ -164,27 +164,8 @@ async function getStats() {
 
 async function getAdvancedStats() {
   const now = new Date()
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
   const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-  
-  // User growth by day (last 30 days) - PostgreSQL
-  const usersByDay = await db.$queryRaw<[{ date: Date; count: bigint }]>`
-    SELECT DATE("createdAt") as date, COUNT(*) as count
-    FROM "User"
-    WHERE "createdAt" >= ${thirtyDaysAgo}
-    GROUP BY DATE("createdAt")
-    ORDER BY date DESC
-  `
-  
-  // Chat activity by day - PostgreSQL
-  const chatsByDay = await db.$queryRaw<[{ date: Date; count: bigint }]>`
-    SELECT DATE("createdAt") as date, COUNT(*) as count
-    FROM "Chat"
-    WHERE "createdAt" >= ${thirtyDaysAgo}
-    GROUP BY DATE("createdAt")
-    ORDER BY date DESC
-  `
   
   // Plan distribution
   const planDistribution = await db.subscription.groupBy({
@@ -252,11 +233,25 @@ async function getAdvancedStats() {
     where: { governorate: { not: null } }
   })
   
+  // Users count by day (simplified - just count new users in last 30 days)
+  const usersLast30Days = await db.user.count({
+    where: {
+      createdAt: { gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) }
+    }
+  })
+  
+  // Chats count by day (simplified)
+  const chatsLast30Days = await db.chat.count({
+    where: {
+      createdAt: { gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) }
+    }
+  })
+  
   return NextResponse.json({
     success: true,
     advancedStats: {
-      usersByDay,
-      chatsByDay,
+      usersByDay: [{ date: now, count: BigInt(usersLast30Days) }],
+      chatsByDay: [{ date: now, count: BigInt(chatsLast30Days) }],
       planDistribution,
       activeToday,
       activeThisWeek,
