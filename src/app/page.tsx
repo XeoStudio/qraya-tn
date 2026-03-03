@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense, lazy, Component, ReactNode } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { AuthProvider, useAuth } from '@/lib/auth-context'
 import HeroSection from '@/components/HeroSection'
@@ -8,11 +8,11 @@ import QuickActions from '@/components/QuickActions'
 import PricingSection from '@/components/PricingSection'
 import AuthModal from '@/components/AuthModal'
 import UserDashboard from '@/components/UserDashboard'
-import AdminPage from '@/components/AdminPage'
 import ChatInterface from '@/components/ChatInterface'
 import ToolsPanel from '@/components/ToolsPanel'
 import WhatsAppButton from '@/components/WhatsAppButton'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { 
   BookOpen, 
   Menu, 
@@ -21,8 +21,46 @@ import {
   Settings, 
   Crown,
   MessageCircle,
-  Sparkles
+  Sparkles,
+  AlertTriangle,
+  RefreshCw
 } from 'lucide-react'
+
+// Lazy load AdminPage to avoid client-side issues
+const AdminPage = lazy(() => import('@/components/AdminPage'))
+
+// Error Boundary Component
+class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error?: Error }> {
+  constructor(props: { children: ReactNode }) {
+    super(props)
+    this.state = { hasError: false }
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen flex items-center justify-center p-4" dir="rtl">
+          <Card className="max-w-md w-full p-8 text-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-100 flex items-center justify-center">
+              <AlertTriangle className="w-8 h-8 text-red-500" />
+            </div>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">حدث خطأ</h2>
+            <p className="text-gray-600 mb-4">{this.state.error?.message || 'خطأ غير متوقع'}</p>
+            <Button onClick={() => window.location.reload()} className="gap-2">
+              <RefreshCw className="w-4 h-4" />
+              تحديث الصفحة
+            </Button>
+          </Card>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
 
 type View = 'home' | 'chat' | 'tools' | 'dashboard' | 'admin'
 
@@ -435,7 +473,15 @@ function MainContent() {
               exit={{ opacity: 0 }}
               className="container mx-auto px-4 py-8"
             >
-              <AdminPage />
+              <ErrorBoundary>
+                <Suspense fallback={
+                  <div className="flex justify-center py-12">
+                    <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                }>
+                  <AdminPage />
+                </Suspense>
+              </ErrorBoundary>
             </motion.div>
           )}
         </AnimatePresence>
