@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,12 +12,9 @@ import {
   CheckCircle, 
   Crown,
   Loader2,
+  Star,
   Users
 } from 'lucide-react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Textarea } from '@/components/ui/textarea'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 interface User {
   id: string
@@ -39,24 +36,12 @@ interface AdminUsersProps {
 export default function AdminUsers({ showMessage }: AdminUsersProps) {
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
-  
-  // Dialogs
-  const [showBanDialog, setShowBanDialog] = useState(false)
-  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false)
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
-  const [selectedUserName, setSelectedUserName] = useState<string>('')
-  const [banReason, setBanReason] = useState('')
-  const [upgradePlan, setUpgradePlan] = useState('PREMIUM')
-  const [upgradeDuration, setUpgradeDuration] = useState('30')
-  const [actionLoading, setActionLoading] = useState(false)
 
-  const fetchUsers = useCallback(async () => {
+  const fetchUsers = async () => {
     setLoading(true)
-    setError(null)
     try {
       const params = new URLSearchParams({
         page: page.toString(),
@@ -65,11 +50,6 @@ export default function AdminUsers({ showMessage }: AdminUsersProps) {
       })
       
       const res = await fetch(`/api/admin?action=users&${params}`, { credentials: 'include' })
-      
-      if (!res.ok) {
-        throw new Error('فشل في تحميل البيانات')
-      }
-      
       const data = await res.json()
       
       if (data.success && Array.isArray(data.users)) {
@@ -80,51 +60,35 @@ export default function AdminUsers({ showMessage }: AdminUsersProps) {
       }
     } catch (err) {
       console.error('Fetch error:', err)
-      setError('حدث خطأ في تحميل البيانات')
       setUsers([])
     } finally {
       setLoading(false)
     }
-  }, [page, search])
+  }
 
   useEffect(() => {
     fetchUsers()
-  }, [fetchUsers])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page])
 
-  const handleSearch = () => {
-    setPage(1)
-    fetchUsers()
-  }
-
-  const banUser = async () => {
-    if (!selectedUserId || !banReason.trim()) return
-    
-    setActionLoading(true)
+  const banUser = async (userId: string, reason: string) => {
     try {
       const res = await fetch('/api/admin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({
-          action: 'ban-user',
-          userId: selectedUserId,
-          reason: banReason
-        })
+        body: JSON.stringify({ action: 'ban-user', userId, reason })
       })
       const data = await res.json()
       
       if (data.success) {
         showMessage('success', 'تم حظر المستخدم')
-        setShowBanDialog(false)
-        setBanReason('')
         fetchUsers()
       } else {
         showMessage('error', data.error || 'فشل الحظر')
       }
     } catch {
       showMessage('error', 'حدث خطأ')
-    } finally {
-      setActionLoading(false)
     }
   }
 
@@ -134,10 +98,7 @@ export default function AdminUsers({ showMessage }: AdminUsersProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({
-          action: 'unban-user',
-          userId
-        })
+        body: JSON.stringify({ action: 'unban-user', userId })
       })
       const data = await res.json()
       
@@ -149,38 +110,6 @@ export default function AdminUsers({ showMessage }: AdminUsersProps) {
       }
     } catch {
       showMessage('error', 'حدث خطأ')
-    }
-  }
-
-  const upgradeSubscription = async () => {
-    if (!selectedUserId) return
-    
-    setActionLoading(true)
-    try {
-      const res = await fetch('/api/admin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          action: 'upgrade-subscription',
-          userId: selectedUserId,
-          plan: upgradePlan,
-          duration: parseInt(upgradeDuration)
-        })
-      })
-      const data = await res.json()
-      
-      if (data.success) {
-        showMessage('success', 'تمت الترقية')
-        setShowUpgradeDialog(false)
-        fetchUsers()
-      } else {
-        showMessage('error', data.error || 'فشلت الترقية')
-      }
-    } catch {
-      showMessage('error', 'حدث خطأ')
-    } finally {
-      setActionLoading(false)
     }
   }
 
@@ -214,24 +143,14 @@ export default function AdminUsers({ showMessage }: AdminUsersProps) {
             placeholder="بحث بالاسم أو البريد..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            onKeyDown={(e) => e.key === 'Enter' && fetchUsers()}
             className="flex-1"
           />
-          <Button onClick={handleSearch} size="icon" disabled={loading}>
+          <Button onClick={fetchUsers} size="icon" disabled={loading}>
             <Search className="w-4 h-4" />
           </Button>
         </div>
       </Card>
-
-      {/* Error State */}
-      {error && (
-        <Card className="p-4 bg-red-50 dark:bg-red-900/20 border-red-200">
-          <p className="text-red-600 text-center">{error}</p>
-          <Button onClick={fetchUsers} variant="outline" size="sm" className="mt-2 w-full">
-            إعادة المحاولة
-          </Button>
-        </Card>
-      )}
 
       {/* Users List */}
       <Card className="p-3">
@@ -258,7 +177,7 @@ export default function AdminUsers({ showMessage }: AdminUsersProps) {
                     </div>
                     <p className="text-sm text-gray-500 truncate">{user.email}</p>
                     <div className="flex items-center gap-3 text-xs text-gray-400 mt-1">
-                      <span>{user.points} نقطة</span>
+                      <span className="flex items-center gap-1"><Star className="w-3 h-3" />{user.points} نقطة</span>
                       <span>•</span>
                       <span>{getPlanLabel(user.plan)}</span>
                       <span>•</span>
@@ -273,27 +192,14 @@ export default function AdminUsers({ showMessage }: AdminUsersProps) {
                       <CheckCircle className="w-4 h-4 ml-1" />
                       إلغاء الحظر
                     </Button>
-                  ) : (
-                    <>
-                      <Button variant="outline" size="sm" onClick={() => {
-                        setSelectedUserId(user.id)
-                        setSelectedUserName(user.name || user.email)
-                        setShowUpgradeDialog(true)
-                      }} className="text-purple-600">
-                        <Crown className="w-4 h-4 ml-1" />
-                        ترقية
-                      </Button>
-                      {user.role !== 'ADMIN' && (
-                        <Button variant="outline" size="sm" onClick={() => {
-                          setSelectedUserId(user.id)
-                          setSelectedUserName(user.name || user.email)
-                          setShowBanDialog(true)
-                        }} className="text-red-600">
-                          <Ban className="w-4 h-4 ml-1" />
-                          حظر
-                        </Button>
-                      )}
-                    </>
+                  ) : user.role !== 'ADMIN' && (
+                    <Button variant="outline" size="sm" onClick={() => {
+                      const reason = prompt('سبب الحظر:')
+                      if (reason) banUser(user.id, reason)
+                    }} className="text-red-600">
+                      <Ban className="w-4 h-4 ml-1" />
+                      حظر
+                    </Button>
                   )}
                 </div>
               </div>
@@ -314,57 +220,6 @@ export default function AdminUsers({ showMessage }: AdminUsersProps) {
           </div>
         )}
       </Card>
-
-      {/* Ban Dialog */}
-      <Dialog open={showBanDialog} onOpenChange={setShowBanDialog}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>حظر المستخدم</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-gray-500">سيتم حظر: {selectedUserName}</p>
-            <div>
-              <Label>سبب الحظر</Label>
-              <Textarea value={banReason} onChange={(e) => setBanReason(e.target.value)} placeholder="أدخل سبب الحظر..." rows={3} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowBanDialog(false)}>إلغاء</Button>
-            <Button variant="destructive" onClick={banUser} disabled={!banReason.trim() || actionLoading}>
-              {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'حظر'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Upgrade Dialog */}
-      <Dialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>ترقية الاشتراك</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-gray-500">ترقية: {selectedUserName}</p>
-            <div>
-              <Label>الخطة</Label>
-              <Select value={upgradePlan} onValueChange={setUpgradePlan}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="BASIC">أساسي</SelectItem>
-                  <SelectItem value="PREMIUM">متقدم</SelectItem>
-                  <SelectItem value="BAC_PRO">باك برو</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>المدة (أيام)</Label>
-              <Input type="number" value={upgradeDuration} onChange={(e) => setUpgradeDuration(e.target.value)} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowUpgradeDialog(false)}>إلغاء</Button>
-            <Button onClick={upgradeSubscription} disabled={actionLoading} className="bg-purple-600 hover:bg-purple-700">
-              {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'ترقية'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

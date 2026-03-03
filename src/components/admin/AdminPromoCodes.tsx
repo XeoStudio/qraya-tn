@@ -1,12 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Ticket, Plus, Trash2, RefreshCw, Loader2, Sparkles, Copy, Check } from 'lucide-react'
 
 interface PromoCodeItem {
@@ -17,58 +15,41 @@ interface PromoCodeItem {
   maxUses: number | null
   usedCount: number
   isActive: boolean
-  expiresAt: string | null
 }
 
 interface AdminPromoCodesProps {
   showMessage: (type: 'success' | 'error', message: string) => void
 }
 
-const planLabels: Record<string, string> = {
-  FREE: 'مجاني',
-  BASIC: 'أساسي',
-  PREMIUM: 'متقدم',
-  BAC_PRO: 'باك برو'
-}
-
-const planColors: Record<string, string> = {
-  BASIC: 'bg-blue-500',
-  PREMIUM: 'bg-purple-500',
-  BAC_PRO: 'bg-amber-500'
-}
+const planLabels: Record<string, string> = { FREE: 'مجاني', BASIC: 'أساسي', PREMIUM: 'متقدم', BAC_PRO: 'باك برو' }
+const planColors: Record<string, string> = { BASIC: 'bg-blue-500', PREMIUM: 'bg-purple-500', BAC_PRO: 'bg-amber-500' }
 
 export default function AdminPromoCodes({ showMessage }: AdminPromoCodesProps) {
   const [promoCodes, setPromoCodes] = useState<PromoCodeItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [newCode, setNewCode] = useState('')
   const [newPlan, setNewPlan] = useState('BASIC')
   const [newDuration, setNewDuration] = useState('')
   const [creating, setCreating] = useState(false)
   const [copiedCode, setCopiedCode] = useState<string | null>(null)
 
-  const fetchPromoCodes = useCallback(async () => {
+  const fetchPromoCodes = async () => {
     setLoading(true)
-    setError(null)
     try {
       const res = await fetch('/api/admin?action=promocodes', { credentials: 'include' })
-      if (!res.ok) {
-        throw new Error('فشل في تحميل البيانات')
-      }
       const data = await res.json()
       setPromoCodes(data.success && Array.isArray(data.promoCodes) ? data.promoCodes : [])
     } catch (err) {
-      console.error('Error fetching promo codes:', err)
-      setError('حدث خطأ في تحميل البيانات')
+      console.error('Error:', err)
       setPromoCodes([])
     } finally {
       setLoading(false)
     }
-  }, [])
+  }
 
   useEffect(() => {
     fetchPromoCodes()
-  }, [fetchPromoCodes])
+  }, [])
 
   const createPromoCode = async () => {
     if (!newCode.trim()) {
@@ -167,7 +148,7 @@ export default function AdminPromoCodes({ showMessage }: AdminPromoCodesProps) {
         <h4 className="font-semibold mb-4">إنشاء كود جديد</h4>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
-            <Label>الكود</Label>
+            <label className="text-sm font-medium mb-1 block">الكود</label>
             <div className="flex gap-2">
               <Input 
                 value={newCode} 
@@ -181,18 +162,19 @@ export default function AdminPromoCodes({ showMessage }: AdminPromoCodesProps) {
             </div>
           </div>
           <div>
-            <Label>الخطة</Label>
-            <Select value={newPlan} onValueChange={setNewPlan}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="BASIC">أساسي</SelectItem>
-                <SelectItem value="PREMIUM">متقدم</SelectItem>
-                <SelectItem value="BAC_PRO">باك برو</SelectItem>
-              </SelectContent>
-            </Select>
+            <label className="text-sm font-medium mb-1 block">الخطة</label>
+            <select 
+              value={newPlan} 
+              onChange={(e) => setNewPlan(e.target.value)}
+              className="w-full p-2 border rounded-lg bg-background"
+            >
+              <option value="BASIC">أساسي</option>
+              <option value="PREMIUM">متقدم</option>
+              <option value="BAC_PRO">باك برو</option>
+            </select>
           </div>
           <div>
-            <Label>المدة (أيام)</Label>
+            <label className="text-sm font-medium mb-1 block">المدة (أيام)</label>
             <Input 
               type="number" 
               value={newDuration} 
@@ -208,16 +190,6 @@ export default function AdminPromoCodes({ showMessage }: AdminPromoCodesProps) {
           </div>
         </div>
       </Card>
-
-      {/* Error State */}
-      {error && (
-        <Card className="p-4 bg-red-50 dark:bg-red-900/20 border-red-200">
-          <p className="text-red-600 text-center">{error}</p>
-          <Button onClick={fetchPromoCodes} variant="outline" size="sm" className="mt-2 w-full">
-            إعادة المحاولة
-          </Button>
-        </Card>
-      )}
 
       {/* List */}
       <Card className="p-4">

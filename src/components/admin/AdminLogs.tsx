@@ -1,10 +1,9 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { FileText, RefreshCw, Loader2, Clock, Activity } from 'lucide-react'
 
 interface LogItem {
@@ -20,14 +19,12 @@ interface LogItem {
 export default function AdminLogs() {
   const [logs, setLogs] = useState<LogItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [actionFilter, setActionFilter] = useState('')
 
-  const fetchLogs = useCallback(async () => {
+  const fetchLogs = async () => {
     setLoading(true)
-    setError(null)
     try {
       const params = new URLSearchParams({
         page: page.toString(),
@@ -36,11 +33,6 @@ export default function AdminLogs() {
       })
       
       const res = await fetch(`/api/admin?action=logs&${params}`, { credentials: 'include' })
-      
-      if (!res.ok) {
-        throw new Error('فشل في تحميل البيانات')
-      }
-      
       const data = await res.json()
       
       if (data.success && Array.isArray(data.logs)) {
@@ -48,20 +40,19 @@ export default function AdminLogs() {
         setTotalPages(data.pagination?.totalPages || 1)
       } else {
         setLogs([])
-        setTotalPages(1)
       }
     } catch (err) {
       console.error('Fetch error:', err)
-      setError('حدث خطأ في تحميل البيانات')
       setLogs([])
     } finally {
       setLoading(false)
     }
-  }, [page, actionFilter])
+  }
 
   useEffect(() => {
     fetchLogs()
-  }, [fetchLogs])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, actionFilter])
 
   const getActionColor = (action: string) => {
     if (!action) return 'text-gray-500'
@@ -86,14 +77,6 @@ export default function AdminLogs() {
     return labels[action] || action
   }
 
-  const formatDate = (dateString: string) => {
-    try {
-      return new Date(dateString).toLocaleDateString('ar')
-    } catch {
-      return 'غير محدد'
-    }
-  }
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -108,29 +91,18 @@ export default function AdminLogs() {
       </div>
 
       <Card className="p-3">
-        <Select value={actionFilter} onValueChange={setActionFilter}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="نوع الإجراء" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="">الكل</SelectItem>
-            <SelectItem value="ban">الحظر</SelectItem>
-            <SelectItem value="create">الإنشاء</SelectItem>
-            <SelectItem value="delete">الحذف</SelectItem>
-            <SelectItem value="subscription">الاشتراكات</SelectItem>
-          </SelectContent>
-        </Select>
+        <select 
+          value={actionFilter} 
+          onChange={(e) => setActionFilter(e.target.value)}
+          className="w-full p-2 border rounded-lg bg-background"
+        >
+          <option value="">الكل</option>
+          <option value="ban">الحظر</option>
+          <option value="create">الإنشاء</option>
+          <option value="delete">الحذف</option>
+          <option value="subscription">الاشتراكات</option>
+        </select>
       </Card>
-
-      {/* Error State */}
-      {error && (
-        <Card className="p-4 bg-red-50 dark:bg-red-900/20 border-red-200">
-          <p className="text-red-600 text-center">{error}</p>
-          <Button onClick={fetchLogs} variant="outline" size="sm" className="mt-2 w-full">
-            إعادة المحاولة
-          </Button>
-        </Card>
-      )}
 
       <Card className="p-3">
         {loading ? (
@@ -144,7 +116,7 @@ export default function AdminLogs() {
             {logs.map((log) => (
               <div key={log.id} className="flex items-center justify-between p-3 rounded-xl border gap-2">
                 <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0 flex">
                     <Activity className={`w-4 h-4 ${getActionColor(log.action)}`} />
                   </div>
                   <div className="min-w-0 flex-1">
@@ -159,7 +131,7 @@ export default function AdminLogs() {
                 </div>
                 <div className="flex items-center gap-1 text-xs text-gray-400">
                   <Clock className="w-3 h-3" />
-                  {formatDate(log.createdAt)}
+                  {log.createdAt ? new Date(log.createdAt).toLocaleDateString('ar') : ''}
                 </div>
               </div>
             ))}
@@ -168,21 +140,11 @@ export default function AdminLogs() {
 
         {totalPages > 1 && (
           <div className="flex items-center justify-center gap-2 mt-4">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setPage(p => Math.max(1, p - 1))} 
-              disabled={page === 1 || loading}
-            >
+            <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
               السابق
             </Button>
             <span className="text-sm text-gray-500">{page} / {totalPages}</span>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setPage(p => Math.min(totalPages, p + 1))} 
-              disabled={page === totalPages || loading}
-            >
+            <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
               التالي
             </Button>
           </div>
