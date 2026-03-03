@@ -293,7 +293,7 @@ export default function AdminUsers({ showMessage }: AdminUsersProps) {
                       <Button variant="ghost" size="sm"><MoreVertical className="w-4 h-4" /></Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => showMessage('info', `${user.email} - ${getRoleLabel(user.role)}`)}>
+                      <DropdownMenuItem onClick={() => alert(`${user.email} - ${getRoleLabel(user.role)}`)}>
                         <Eye className="w-4 h-4 ml-2" />
                         عرض التفاصيل
                       </DropdownMenuItem>

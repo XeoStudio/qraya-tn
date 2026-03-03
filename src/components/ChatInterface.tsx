@@ -423,7 +423,7 @@ export default function ChatInterface({ initialMessage }: ChatInterfaceProps) {
                   <Button key={i} variant="outline" size="sm" onClick={() => setInput(action.prompt)} className="text-xs bg-white dark:bg-gray-800 h-auto py-2 flex flex-col items-center gap-0.5">
                     {'icon' in action && <action.icon className="w-4 h-4" />}
                     <span>{action.label}</span>
-                    {'description' in action && <span className="text-[10px] text-gray-400">{action.description}</span>}
+                    {'description' in action && typeof action.description === 'string' && <span className="text-[10px] text-gray-400">{action.description}</span>}
                   </Button>
                 ))}
               </div>

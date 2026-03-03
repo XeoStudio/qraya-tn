@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Update user role
-    if (promoCode.planType === 'PREMIUM' || promoCode.planType === 'LIFETIME') {
+    if (promoCode.planType === 'PREMIUM' || promoCode.planType === 'BAC_PRO') {
       await db.user.update({
         where: { id: user.id },
         data: { role: 'PREMIUM', points: { increment: 50 } }

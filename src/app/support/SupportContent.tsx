@@ -54,7 +54,7 @@ interface Ticket {
 }
 
 export default function SupportContent() {
-  const { user, isLoading: authLoading } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null)
   const [loading, setLoading] = useState(true)
